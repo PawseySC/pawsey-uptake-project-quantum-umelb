@@ -26,6 +26,11 @@ Focusing on this design intent makes it a bit harder but also creates an engine-
 * https://www.nature.com/articles/s41598-025-02959-z
 * https://doi.org/10.1088/2632-2153/ad43b2
 
+### Quantum tensor network
+
+* https://doi.org/10.1098/rspa.2023.0218
+* https://doi.org/10.22331/q-2023-04-13-974
+
 ## Quantum Optimisation
 
 ## CFD
