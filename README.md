@@ -24,6 +24,7 @@ Focusing on this design intent makes it a bit harder but also creates an engine-
 ## Quantum ML
 
 * https://www.nature.com/articles/s41598-025-02959-z
+* https://doi.org/10.1088/2632-2153/ad43b2
 
 ## Quantum Optimisation
 
