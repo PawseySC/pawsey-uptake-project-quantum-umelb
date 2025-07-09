@@ -1,0 +1,3 @@
+[submodule "qbitbridge"]
+	path = qbitbridge
+	url = https://github.com/PawseySC/vqpu-hybrid-workflow
