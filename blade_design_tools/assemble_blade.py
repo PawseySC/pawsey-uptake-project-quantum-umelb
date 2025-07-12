@@ -1,6 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from main import de_casteljau
+
+def naca_thickness_base(xn):
+    return (
+        0.2969 * np.sqrt(xn)
+        - 0.1260 * xn
+        - 0.3516 * xn**2
+        + 0.2843 * xn**3
+        - 0.085 * xn**4
+    )
 
 def compute_cubic_bezier_control_points(P0, t0, P3, t3, alpha, beta):
     t0 = t0 / np.linalg.norm(t0)
@@ -22,15 +30,23 @@ def de_casteljau_cubic(t, control_points):
     point = (1 - t) * D + t * E
     return point
 
-
 fig,axes = plt.subplots(nrows=2,sharex=False,sharey=False)
 ax = axes[0]
 fname = "./airfoil_camber_line.txt"
 camber = np.loadtxt(fname)
-fname = "./airfoil_bottom_thickness.txt"
-thickness_bottom = np.loadtxt(fname)
-fname = "./airfoil_top_thickness.txt"
-thickness_top = np.loadtxt(fname)
+
+try:
+    fname = "./airfoil_bottom_thickness.txt"
+    thickness_bottom = np.loadtxt(fname)
+    fname = "./airfoil_top_thickness.txt"
+    thickness_top = np.loadtxt(fname)
+except FileNotFoundError:
+    # Calculate the base thickness, scaled by t_max_frac
+    t_max_frac = 0.1
+    thickness = 5 * t_max_frac * naca_thickness_base(camber[:,0])
+    thickness = np.stack((camber[:,0],thickness),axis=-1)
+    thickness_bottom = thickness_top = thickness
+
 ax.plot(camber[:,0],camber[:,1],"k--")
 
 dy_dx = np.gradient(camber[:,1],camber[:,0])
@@ -46,7 +62,7 @@ y_lower = camber[:,1] - thickness_top[:,1] * ny
 ax.plot(x_lower,y_lower)
 ax.plot(x_upper,y_upper)
 
-for idx in [0,-1]:
+for fact_curv,idx in zip([1,1],[0,-1]):
     P0 = np.array([x_upper[idx], y_upper[idx]])
     P3 = np.array([x_lower[idx], y_lower[idx]])
 
@@ -77,7 +93,7 @@ for idx in [0,-1]:
         dist_zero = np.sqrt((camber[idx,0]-x_lower[idx])**2+(camber[idx,1]-y_lower[idx])**2)
         dist_bez = np.sqrt((camber[idx,0]-bezier_points[idx_mid,0])**2+(camber[idx,1]-bezier_points[idx_mid,1])**2)
 
-        dist_tmp = abs(dist_zero-dist_bez)
+        dist_tmp = abs(fact_curv*dist_zero-dist_bez)
         if dist_tmp < dist_best:
             dist_best = dist_tmp
             fact_best = fact
