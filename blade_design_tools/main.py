@@ -3,6 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+def load_config(filepath):
+    import yaml
+    """Loads configuration from a YAML file."""
+    with open(filepath, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
+
 # Helper function for Bezier curve calculation (de Casteljau algorithm)
 def de_casteljau(t, points):
     """
@@ -95,6 +102,35 @@ class CurveEditorWindow:
 
         self.num_points = 5 # Fixed at 5 points (P0, P1, P2, P3, P4)
 
+        # try to read airfoil_config.yaml
+        try:
+            config = load_config("airfoil_config.yaml")
+            if self.curve_type == "Camber":
+                inlet_angle_init = config["camber_line"]["inlet_angle_deg"]
+                outlet_angle_init = config["camber_line"]["outlet_angle_deg"]
+                stagger_angle_init = config["camber_line"]["stagger_angle_deg"]
+                initial_k_P1 = config["camber_line"]["control_points_params"]["P1_k_factor"]
+                initial_k_P3 = config["camber_line"]["control_points_params"]["P3_k_factor"]
+            else:
+                inlet_angle_init = config["top_thickness"]["inlet_angle_deg"]
+                outlet_angle_init = config["top_thickness"]["outlet_angle_deg"]
+                p4_y_thickness_init = config["top_thickness"]["p4_y"]
+                le_y_thickness_init = config["top_thickness"]["le_y_thickness"]
+                initial_k_P1 = config["top_thickness"]["control_points_params"]["P1_k_factor"]
+                initial_k_P3 = config["top_thickness"]["control_points_params"]["P3_k_factor"]
+
+        except FileNotFoundError:
+            # Initial k factors for P1 and P3
+            if self.curve_type == "Camber":
+                inlet_angle_init = 25
+                outlet_angle_init = -50
+                stagger_angle_init = -25
+            else:
+                inlet_angle_init = 20
+                outlet_angle_init = 20
+            initial_k_P1 = 0.15 # Distance along inlet tangent
+            initial_k_P3 = -0.25 # Distance along outlet tangent (negative to point inwards)
+
         # Initialize StringVars first to ensure they exist before being accessed
         self.p1_y_var = tk.StringVar()
         self.p2_y_var = tk.StringVar()
@@ -115,14 +151,14 @@ class CurveEditorWindow:
 
         # Initial angles/values based on user request
         if self.curve_type == "Camber":
-            self.angle_inlet_deg = 45
-            self.angle_outlet_deg = -50
-            self.stagger_angle_deg = -25 # Initial stagger angle for Camber
+            self.angle_inlet_deg = inlet_angle_init
+            self.angle_outlet_deg = outlet_angle_init
+            self.stagger_angle_deg = stagger_angle_init # Initial stagger angle for Camber
         else: # For Top/Bottom Thickness
-            self.initial_p4_y_thickness = 0.01 # Initial P4 Y for thickness
-            self.le_y_thickness = 0.02 # Initial LE Y for thickness (small positive value for bluntness)
-            self.angle_inlet_deg = 20 # Default vertical tangent for thickness LE
-            self.angle_outlet_deg = -0 # Default vertical tangent for thickness TE
+            self.initial_p4_y_thickness = p4_y_thickness_init # Initial P4 Y for thickness
+            self.le_y_thickness = le_y_thickness_init # Initial LE Y for thickness (small positive value for bluntness)
+            self.angle_inlet_deg = inlet_angle_init # Default vertical tangent for thickness LE
+            self.angle_outlet_deg = outlet_angle_init # Default vertical tangent for thickness TE
 
         # Initialize control points based on curve type and constraints
         self.control_points = np.zeros((self.num_points, 2), dtype=float)
@@ -147,10 +183,6 @@ class CurveEditorWindow:
         P0 = self.control_points[0]
         Pn_1 = self.control_points[self.num_points - 1]
 
-        # Initial k factors for P1 and P3
-        initial_k_P1 = 0.15 # Distance along inlet tangent
-        initial_k_P3 = -0.25 # Distance along outlet tangent (negative to point inwards)
-
         self.control_points[1] = P0 + initial_k_P1 * self.inlet_dir_vec
         self.control_points[self.num_points - 2] = Pn_1 + initial_k_P3 * self.outlet_dir_vec
 
@@ -159,12 +191,10 @@ class CurveEditorWindow:
             self.control_points[1][1] = np.clip(self.control_points[1][1], 0.0, np.inf)
             self.control_points[self.num_points - 2][1] = np.clip(self.control_points[self.num_points - 2][1], 0.0, np.inf)
 
-
         # P2 (mid-point) - free to move
         self.control_points[2] = [0.5, 0.05 if "Thickness" in self.curve_type else 0.05] # Initial Y slightly positive for thickness
         if "Thickness" in self.curve_type: # Ensure positive Y for thickness
             self.control_points[2][1] = np.clip(self.control_points[2][1], 0.0, np.inf)
-
 
         self.selected_point_index = None # Index of the currently dragged point
 
@@ -734,20 +764,20 @@ class AirfoilPlotWindow:
     def _write_top_thickness_to_file(self):
         # Export the top thickness curve points, not the airfoil top surface points
         if self.top_thickness_curve_points is not None:
-            self._write_to_file("airfoil_top_thickness.txt", self.top_thickness_curve_points, "Airfoil Top Thickness Distribution Coordinates")
+            self._write_to_file("./outputs/airfoil_top_thickness.txt", self.top_thickness_curve_points, "Airfoil Top Thickness Distribution Coordinates")
         else:
             print("Top thickness data not available.")
 
     def _write_bottom_thickness_to_file(self):
         # Export the bottom thickness curve points, not the airfoil bottom surface points
         if self.bottom_thickness_curve_points is not None:
-            self._write_to_file("airfoil_bottom_thickness.txt", self.bottom_thickness_curve_points, "Airfoil Bottom Thickness Distribution Coordinates")
+            self._write_to_file("./outputs/airfoil_bottom_thickness.txt", self.bottom_thickness_curve_points, "Airfoil Bottom Thickness Distribution Coordinates")
         else:
             print("Bottom thickness data not available.")
 
     def _write_camber_to_file(self):
         if self.camber_curve_points is not None:
-            self._write_to_file("airfoil_camber_line.txt", self.camber_curve_points, "Airfoil Camber Line Coordinates")
+            self._write_to_file("./outputs/airfoil_camber_line.txt", self.camber_curve_points, "Airfoil Camber Line Coordinates")
         else:
             print("Camber line data not available.")
 
@@ -790,7 +820,7 @@ class AirfoilPlotWindow:
         x_lower_transformed /= scale
         y_lower_transformed /= scale
 
-        fname_out = "./airfoil.dat"
+        fname_out = "./outputs/airfoil.dat"
         try:
             with open(fname_out, "w") as io_file:
                 io_file.writelines(f"{cax_dim:.3f}\n") # Write chord length first

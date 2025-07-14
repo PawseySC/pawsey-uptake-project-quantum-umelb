@@ -395,13 +395,17 @@ if __name__ == "__main__":
                      config['output_settings']['plot_title'])
 
         # 6. Write output files
-        write_points_to_file(camber_curve_points, config['output_settings']['output_camber_filename'], "Camber Line Coordinates")
-        write_points_to_file(top_thickness_curve_points, config['output_settings']['output_top_thickness_filename'], "Top Thickness Distribution Coordinates")
-        write_points_to_file(bottom_thickness_curve_points, config['output_settings']['output_bottom_thickness_filename'], "Bottom Thickness Distribution Coordinates")
+        if config['output_settings']['output_camber_filename'] != "None":
+            write_points_to_file(camber_curve_points, config['output_settings']['output_camber_filename'], "Camber Line Coordinates")
+        if config['output_settings']['output_top_thickness_filename'] != "None":
+            write_points_to_file(top_thickness_curve_points, config['output_settings']['output_top_thickness_filename'], "Top Thickness Distribution Coordinates")
+        if config['output_settings']['output_bottom_thickness_filename'] != "None":
+            write_points_to_file(bottom_thickness_curve_points, config['output_settings']['output_bottom_thickness_filename'], "Bottom Thickness Distribution Coordinates")
         
-        write_airfoil_dat(airfoil_top_points, airfoil_bottom_points, camber_curve_points,
-                          config['output_settings']['output_airfoil_filename'],
-                          config['output_settings']['chord_length_for_export'])
+        if config['output_settings']['output_airfoil_filename'] != "None":
+            write_airfoil_dat(airfoil_top_points, airfoil_bottom_points, camber_curve_points,
+                            config['output_settings']['output_airfoil_filename'],
+                            config['output_settings']['chord_length_for_export'])
 
     except FileNotFoundError:
         print(f"Error: Configuration file '{config_filepath}' not found.")

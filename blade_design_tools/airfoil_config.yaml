@@ -11,7 +11,7 @@ camber_line:
 
 top_thickness:
   control_points_params:
-    P1_k_factor: 0.25
+    P1_k_factor: 0.2
     P2_x: 0.1
     P2_y: 0.03
     P3_k_factor: 0
@@ -22,7 +22,7 @@ top_thickness:
 
 bottom_thickness:
   control_points_params:
-    P1_k_factor: 0.25
+    P1_k_factor: 0.2
     P2_x: 0.1
     P2_y: 0.03
     P3_k_factor: 0
@@ -32,10 +32,10 @@ bottom_thickness:
   p4_y: 0.01           # Y-coordinate of P4 for thickness curve (half-thickness at TE)
 
 output_settings:
-  output_airfoil_filename: "generated_airfoil.dat"
-  output_camber_filename: "generated_camber_line.txt"
-  output_top_thickness_filename: "generated_top_thickness.txt"
-  output_bottom_thickness_filename: "generated_bottom_thickness.txt"
+  output_airfoil_filename: None #"generated_airfoil.dat"
+  output_camber_filename: None #"generated_camber_line.txt"
+  output_top_thickness_filename: None #"generated_top_thickness.txt"
+  output_bottom_thickness_filename: None #"generated_bottom_thickness.txt"
   plot_title: "Generated Airfoil Shape"
   num_points_on_curve: 1000 # Number of points for main Bezier curves
   num_points_on_arc: 50    # Number of points for LE/TE arcs

@@ -8,9 +8,9 @@ def main():
     config = load_config(config_filepath)
     
     fig,ax = plt.subplots()
-    for fact in [0.2,0.3]:
-        config["top_thickness"]["control_points_params"]["P1_k_factor"] = fact
-        config["bottom_thickness"]["control_points_params"]["P1_k_factor"] = fact
+    for fact in [0.02,0.03,0.04]:
+        config["top_thickness"]["control_points_params"]["P2_y"] = fact
+        config["bottom_thickness"]["control_points_params"]["P2_y"] = fact
 
         # 1. Compute Camber Line
         camber_control_points, camber_curve_points = compute_curve_points(
