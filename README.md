@@ -32,6 +32,11 @@ Focusing on this design intent makes it a bit harder but also creates an engine-
 * https://doi.org/10.1098/rspa.2023.0218
 * https://doi.org/10.22331/q-2023-04-13-974
 
+## Quantum circuit learning
+
+* http://arxiv.org/abs/2507.12256
+* https://link.aps.org/doi/10.1103/PhysRevA.98.032309
+
 ## Quantum Optimisation
 
 ## CFD
