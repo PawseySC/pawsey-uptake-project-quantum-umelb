@@ -31,6 +31,8 @@ Focusing on this design intent makes it a bit harder but also creates an engine-
 
 * https://doi.org/10.1098/rspa.2023.0218
 * https://doi.org/10.22331/q-2023-04-13-974
+* https://www.nature.com/articles/s43588-021-00181-1
+* https://journals.aps.org/prfluids/abstract/10.1103/PhysRevFluids.8.124101
 
 ## Quantum circuit learning
 
