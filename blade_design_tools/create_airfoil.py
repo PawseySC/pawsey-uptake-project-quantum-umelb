@@ -359,9 +359,7 @@ def write_airfoil_dat(airfoil_top_points, airfoil_bottom_points, camber_points,
     except Exception as e:
         print(f"Error writing to file {output_filename}: {e}")
 
-
-if __name__ == "__main__":
-    config_filepath = "airfoil_config.yaml"
+def generate_shape(config_filepath="airfoil_config.yaml"):
     
     try:
         config = load_config(config_filepath)
@@ -415,4 +413,9 @@ if __name__ == "__main__":
         print("Please check 'airfoil_config.yaml' for correct structure and all required parameters.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        
+    return airfoil_top_points, airfoil_bottom_points, camber_curve_points
 
+if __name__ == "__main__":
+    generate_shape()
+    
