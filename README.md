@@ -26,8 +26,9 @@ Focusing on this design intent makes it a bit harder but also creates an engine-
 * https://www.nature.com/articles/s41598-025-02959-z
 * https://doi.org/10.1088/2632-2153/ad43b2
 * https://arxiv.org/abs/2206.11740 (for surrogate model, this might be easier)
+* https://arxiv.org/pdf/2501.07085 (approx. policy for PPO using QML)
 
-### Quantum tensor network
+## Quantum tensor network
 
 * https://doi.org/10.1098/rspa.2023.0218
 * https://doi.org/10.22331/q-2023-04-13-974
@@ -43,5 +44,7 @@ Focusing on this design intent makes it a bit harder but also creates an engine-
 
 ## CFD
 
+## Shape Optimization
+* https://www.tandfonline.com/doi/epdf/10.1080/19942060.2024.2445144
 
 
