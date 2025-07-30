@@ -48,3 +48,7 @@ Focusing on this design intent makes it a bit harder but also creates an engine-
 * https://www.tandfonline.com/doi/epdf/10.1080/19942060.2024.2445144
 
 
+## Useful packages 
+* Neuralfoil : https://github.com/peterdsharpe/NeuralFoil
+* Torchquantum : https://github.com/mit-han-lab/torchquantum/
+
