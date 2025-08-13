@@ -9,28 +9,30 @@ FFLAGS = -O3 --std=legacy
 
 targets = meangen stagen multall
 
-.PHONY: all install prep clean
+.PHONY: all install installdirs clean
 
-all: install
+all: $(targets)
 
-install: $(targets)
-	chmod +x $(bindir)/*
+install:
 	mkdir -p $(installdir)
 	ln -sf $$PWD/$(bindir)/* $(installdir)
 
-prep:
+installdirs:
 	mkdir -p $(bindir)
 
 clean:
-	rm -rf $(bindir)
-	rm -rf $(installdir)
+	-rm -r $(bindir)
+	-rm $(foreach target,$(targets),$(installdir)/$(target))
 
-meangen: Meangen/meangen-17.4-custom.f prep
+meangen: Meangen/meangen-17.4-custom.f installdirs
 	$(FC) $(FFLAGS) -o $(bindir)/$@ $(srcdir)/$<
+	chmod +x $(bindir)/$@
 
-stagen: Stagen/stagen-18.1.f prep
+stagen: Stagen/stagen-18.1.f installdirs
 	$(FC) $(FFLAGS) -o $(bindir)/$@ $(srcdir)/$<
+	chmod +x $(bindir)/$@
 
-multall: Multall/multall-open-18.2.f prep
+multall: Multall/multall-open-18.2.f installdirs
 	$(FC) $(FFLAGS) -o $(bindir)/$@ $(srcdir)/$<
+	chmod +x $(bindir)/$@
 
