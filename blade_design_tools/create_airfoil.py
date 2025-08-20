@@ -359,10 +359,10 @@ def write_airfoil_dat(airfoil_top_points, airfoil_bottom_points, camber_points,
     except Exception as e:
         print(f"Error writing to file {output_filename}: {e}")
 
-def generate_shape(config_filepath="airfoil_config.yaml"):
+def generate_shape(config_filepath="airfoil_config.yaml", config_dict=None):
     
     try:
-        config = load_config(config_filepath)
+        config = load_config(config_filepath) if config_dict is None else config_dict
 
         # 1. Compute Camber Line
         camber_control_points, camber_curve_points = compute_curve_points(
