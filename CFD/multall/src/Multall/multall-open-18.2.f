@@ -87,13 +87,28 @@ C                            SUBROUTINES.
 C   
 C
       CHARACTER*1 ANSIN
+      INTEGER stringsize 
+      CHARACTER*1024 inputfile, outputfilebase
+      CHARACTER*1024 out1, out2, out3, out4, out5
+
 C
+c      OPEN(UNIT=1,FILE='/dev/tty')
+c      OPEN(UNIT=4,FILE ='stage.log')
+c      OPEN(UNIT=7,FILE ='flow_out',   FORM = 'unformatted')
+c      OPEN(UNIT=11,FILE='global.plt', FORM = 'unformatted')
+c      OPEN(UNIT=3,FILE ='results.out')
+c      OPEN(UNIT=12,FILE='stopit')
+
+
       OPEN(UNIT=1,FILE='/dev/tty')
-      OPEN(UNIT=4,FILE ='stage.log')
-      OPEN(UNIT=7,FILE ='flow_out',   FORM = 'unformatted')
-      OPEN(UNIT=11,FILE='global.plt', FORM = 'unformatted')
-      OPEN(UNIT=3,FILE ='results.out')
-      OPEN(UNIT=12,FILE='stopit')
+      call stripstring(outputfilebase, stringsize)
+      OPEN(UNIT=4, FILE=outputfilebase(1:stringsize)//'_stage.log')
+      OPEN(UNIT=7, FILE=outputfilebase(1:stringsize)//'_flow_out'
+     &,  FORM = 'unformatted')
+      OPEN(UNIT=11,FILE=outputfilebase(1:stringsize)//'_global.plt'
+     &, FORM = 'unformatted')
+      OPEN(UNIT=3, FILE=outputfilebase(1:stringsize)//'_results.out')
+      OPEN(UNIT=12,FILE=outputfilebase(1:stringsize)//'_stopit')
 C
       IFSTOP = 0
       WRITE(12,*) IFSTOP
@@ -102,39 +117,44 @@ C
 C******************************************************************************
 C     DECIDE WHICH INPUT STYLE TO USE
 C
-      OPEN(UNIT=13,FILE='intype')
-            READ(13,*,END=10,ERR=10)   ANSIN
-      GO TO 20
-   10 WRITE(6,*) 'STOPPING BECAUSE FILE  "intype" DOES NOT EXIST '
-      STOP 
+
+C     Change this to comment it out as this was to change format from old to new from stagen
+C     and now we just use new type ??? PJE
+c      OPEN(UNIT=13,FILE='intype')
+c            READ(13,*,END=10,ERR=10)   ANSIN
+c      GO TO 20
+c   10 WRITE(6,*) 'STOPPING BECAUSE FILE  "intype" DOES NOT EXIST '
+c      STOP 
 C
-   20 CONTINUE
+c   20 CONTINUE
 C
-      CLOSE(13)
+c      CLOSE(13)
 C
-      IF(ANSIN.EQ.'N'.OR.ANSIN.EQ.'n') THEN
-             WRITE(6,*) ' NEW_READIN DATA FORMAT SPECIFIED.'
-             CALL NEW_READIN
-      ELSE
+c      IF(ANSIN.EQ.'N'.OR.ANSIN.EQ.'n') THEN
+c             WRITE(6,*) ' NEW_READIN DATA FORMAT SPECIFIED.'
+c             CALL NEW_READIN
+c      ELSE
 C
-      IF(ANSIN.EQ.'O'.OR.ANSIN.EQ.'o')THEN
-             WRITE(6,*)' OLD_READIN DATA FORMAT SPECIFIED.'
-             CALL OLD_READIN
-      ELSE
+c      IF(ANSIN.EQ.'O'.OR.ANSIN.EQ.'o')THEN
+c             WRITE(6,*)' OLD_READIN DATA FORMAT SPECIFIED.'
+c             CALL OLD_READIN
+c      ELSE
 C
-      WRITE(6,*) ' STOPPING BECAUSE FILE "intype" DOES NOT CONTAIN  "O" 
-     & OR  "N" '
-      STOP
+c      WRITE(6,*) ' STOPPING BECAUSE FILE "intype" DOES NOT CONTAIN  "O" 
+c     & OR  "N" '
+c      STOP
 C
-      END IF
+c      END IF
 C
-      END IF
+c      END IF
+      ANSIN='N'
+      CALL NEW_READIN
 C******************************************************************************
 C 
-      CALL SETUP(ANSIN)
+      CALL SETUP(ANSIN, outputfilebase)
 C
 C   LOOP calls  many other subroutines, especially TSTEP .
-      CALL LOOP
+      CALL LOOP(outputfilebase)
 C
 C*********************************************************************************
 C
@@ -3661,7 +3681,7 @@ C*************************************************************************
 C*************************************************************************
 C*************************************************************************
 C
-      SUBROUTINE LOOP
+      SUBROUTINE LOOP(outputfilebase)
 C
 C      THIS IS THE MAIN TIME STEPPING LOOP. IT IS EXECUTED MANY HUNDREDS OF
 C      TIMES AND USES MOST OF THE CPU TIME. ITS MAIN SUBROUTINE IS 'TSTEP'
@@ -3671,6 +3691,9 @@ C
 C
       DIMENSION CHECK_FLOW(JD),BLADE_FLOW(JD),ROVMSQ(KD),ANG_INC(KD)
       SAVE START,FINI,CHECK_FLOW,BLADE_FLOW
+      INTEGER stringsize 
+      CHARACTER*1024 outputfilebase
+      
 C
 C****************************************************************************** 
 C    SET SOME REFERENCE VALUES
@@ -3768,7 +3791,9 @@ C    CHECK IF A REQUEST TO STOP HAS BEEN RECEIVED BY "stopit" BEING SET
 C    GREATER THAN ZERO.
 C
       IF(MOD(N,10).EQ.0) THEN
-           OPEN(UNIT=12,FILE='stopit')
+            call stripstring(outputfilebase, stringsize)
+            OPEN(UNIT=12, FILE=outputfilebase(1:stringsize)//'_stopit')
+c           OPEN(UNIT=12,FILE='stopit')
            READ(12,*) IFSTOP
            IF(IFSTOP.GE.1) IFEND = 1
            CLOSE(12)
@@ -5348,7 +5373,7 @@ C      CALL EFICOOL TO PRINT OUT MASS AVERAGED QUANTITIES
 C      AND MACHINE EFFICIENCY AND SHROUD LEAKAGE FLOWS EVERY 200 STEPS.
 C
       IF(MOD(NSTEP,200).EQ.0.OR.IFPRINT.EQ.1.OR.IFEND.EQ.1) THEN
-      CALL EFICOOL(HBLEDTOT)
+      CALL EFICOOL(HBLEDTOT, outputfilebase)
 C
 C******************************************************************************
 C******************************************************************************
@@ -6270,7 +6295,7 @@ C
 C******************************************************************************
 C******************************************************************************
 C
-      SUBROUTINE SETUP(ANSIN)
+      SUBROUTINE SETUP(ANSIN, outputfilebase)
 C
 C**********THIS SUBROUTINE SETS UP THE GRID AND INITIALISES ALL THE
 C          VARIABLES USED IN THE MAIN PROGRAM.
@@ -6281,6 +6306,8 @@ C
      &          INDLETE(JD)
 C
       CHARACTER*1 ANSW,ANSIN
+      INTEGER stringsize
+      CHARACTER*1024 outputfilebase
 C
 C      SET VARIOUS CONSTANTS AND INTEGERS NEEDED THROUGHOUT THE CALCULATION
 C
@@ -6575,7 +6602,12 @@ C******************************************************************************
 C******************************************************************************
 C     WRITE THE GRID GEOMETRY TO UNIT 21 FOR USE WHEN PLOTTING
 C
-      OPEN(UNIT=21,FILE='grid_out',form= 'unformatted' )
+
+C     This could be kept but means that it will output data to current working directory ??? PJE
+c      OPEN(UNIT=21,FILE='grid_out',form= 'unformatted' )
+      call stripstring(outputfilebase, stringsize)
+      OPEN(UNIT=21,FILE=outputfilebase(1:stringsize)//'grid_out',
+     &form= 'unformatted' )
 C
       WRITE(21) NSTEPS_MAX
       WRITE(21) IM,JM,KM
@@ -10792,7 +10824,7 @@ C
 C
 C**********************************************************************
 C
-      SUBROUTINE EFICOOL(HBLEDTOT)
+      SUBROUTINE EFICOOL(HBLEDTOT, outputfilebase)
 C
 C     THIS SUBROUTINE CALCULATES THE MASS AVERAGED QUANTITIES AND MACHINE
 C     EFFICIENCY AND WRITES THEM OUT TO UNIT 6.
@@ -10805,6 +10837,8 @@ C
       DIMENSION BLADE_FLOW(JD),SUM_ENTPY(JD),SUMPO(JD),SUMTO(JD),
      &          SUMRVT(JD),SUMTSTAT(JD), ETA_LOSS(JD),SUMPSTAT(JD),
      &          CHECK_FLOW(JD)
+      INTEGER stringsize
+      CHARACTER*1024 outputfilebase
 C
 C      SUM FLUXES OF MASS,STAGNATION PRESURE  ETC EVERY 100 TIME STEPS
 C
@@ -10920,7 +10954,8 @@ C ********************************************************
 C    WRITE A FILE TO PLOT THE ENTROPY LOSS COEFFICIENT OR LOST EFFICIENCY'
 C  
       IF(IFEND.EQ.1) THEN   
-      OPEN(UNIT=23,FILE='loss-co.plt')
+c      OPEN(UNIT=23,FILE='loss-co.plt')
+      OPEN(UNIT=23,FILE=outputfilebase(1:stringsize)//'loss-co.plt')
       WRITE(23,*) ' PLOTTING OUTPUT FOR LOST EFFICIENCY '
       WRITE(23,*) ' NUMBER OF OUTPUT POINTS ', JM
       WRITE(23,*) ' MERIDIONAL DISTANCE '
@@ -16226,3 +16261,53 @@ C
       END
 C******************************************************************************
 C****************************************************************************** 
+
+C     **********
+      SUBROUTINE GETCOMMANDLINE(INPUTFILE, OUTPUTFILE)
+
+      IMPLICIT NONE   
+
+      CHARACTER*4096 ARGUMENT
+      INTEGER I, oldI, NUM_ARGS
+      CHARACTER*1024 INPUTFILE, OUTPUTFILE
+
+      NUM_ARGS = 0
+      oldI = 1
+        CALL GETENV("MULTALL_ARGS", ARGUMENT)
+        DO I = 1, LEN(ARGUMENT)
+          IF (ARGUMENT(I:I) == ' ') THEN
+            NUM_ARGS = NUM_ARGS + 1
+            IF (NUM_ARGS == 1) THEN
+                  INPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIF 
+            IF (NUM_ARGS == 2) THEN
+                  OUTPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIf            
+            oldI=I+1
+          END IF
+        ENDDO
+
+      Call stripstring(INPUTFILE, I)
+      PRINT *, "Inputfile ", INPUTFILE(1:I), " will be read"
+      call stripstring(OUTPUTFILE, I)
+      PRINT *, "Outputfile ", OUTPUTFILE(1:I), " will be written to"
+
+      RETURN
+      END
+
+      SUBROUTINE stripstring(string, size)
+
+      implicit NONE
+
+      CHARACTER*1024 string
+      INTEGER size, I
+
+      size=1
+      DO I = 1, LEN(string)
+          IF (string(I:I) == ' ' .AND. size == 1) THEN
+            size=I-1
+          END IF
+      end do
+      
+      return 
+      end

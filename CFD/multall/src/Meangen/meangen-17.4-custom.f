@@ -56,8 +56,16 @@ C
      &              IFOUT(NG),IF_ROT
       CHARACTER*3   FLO_TYP
       CHARACTER*72  DUMMY_LINE
+      INTEGER stringsize 
+      CHARACTER*1024 inputfile, outputfile
 C
-      OPEN(UNIT=10, FILE= 'meangen.out')
+      call GETCOMMANDLINE(inputfile, outputfile)
+      call stripstring(inputfile, stringsize)
+      OPEN(UNIT=5, FILE=inputfile(1:stringsize))
+      call stripstring(outputfile, stringsize)
+      OPEN(UNIT=10, FILE=outputfile(1:stringsize))
+C     Change this to be passed a string ??? PJE
+C     OPEN(UNIT=10, FILE= 'meangen.out')
 C     OPEN(UNIT=5,  FILE= '/dev/tty')
 C
       PI     = 3.14159
@@ -84,15 +92,17 @@ C
      &*****************************************************************'
       WRITE(6,*)'*******************************************************
      &*****************************************************************'
-C
-      WRITE(6,*) ' INPUT FROM SCREEN OR FILE ? '
-      WRITE(6,*) ' ANSWER "S"  or  "F" .'
-      READ(5,*)    ANSIN
-      IF(ANSIN.EQ.'F'.OR.ANSIN.EQ.'f') THEN
-           ANSIN = 'F'
-           CLOSE(5)
-           OPEN(UNIT=5, FILE='meangen.in' )
-      END IF
+C     
+c     Commented out because now read data from input file through UNIT=5
+c      WRITE(6,*) ' INPUT FROM SCREEN OR FILE ? '
+c      WRITE(6,*) ' ANSWER "S"  or  "F" .'
+c       READ(5,*)    ANSIN
+c       IF(ANSIN.EQ.'F'.OR.ANSIN.EQ.'f') THEN
+c            ANSIN = 'F'
+c            CLOSE(5)
+c C           Change this to an argument to be passed.            
+c            OPEN(UNIT=5, FILE='meangen.in' )
+c       END IF
 C
       WRITE(6,*)'******************************************************'
       WRITE(6,*)'******************************************************'  
@@ -2317,6 +2327,7 @@ C************************************************************************
 C    
 C      WRITE OUTPUT FOR  STAGEN
 C
+C     Change this output an argument to be passed ??? PJE
       OPEN(UNIT=9, FILE= 'stagen.dat')
 C
       WRITE(9,9000) RGAS, GAMM
@@ -3061,3 +3072,79 @@ C
       RETURN
       END
 C******************************************************************************
+
+      SUBROUTINE GETCOMMANDLINE(INPUTFILE, OUTPUTFILE)
+
+      IMPLICIT NONE   
+
+      CHARACTER*4096 ARGUMENT
+      INTEGER I, oldI, NUM_ARGS
+      CHARACTER*1024 INPUTFILE, OUTPUTFILE
+
+      ! Get the number of arguments from the environment variable "MEANGEN_ARGS"
+      NUM_ARGS = 0
+      oldI = 1
+      !IF (GETENV("MEANGEN_ARGS") /= "") THEN
+        CALL GETENV("MEANGEN_ARGS", ARGUMENT)
+        DO I = 1, LEN(ARGUMENT)
+          IF (ARGUMENT(I:I) == ' ') THEN
+            NUM_ARGS = NUM_ARGS + 1
+            IF (NUM_ARGS == 1) THEN
+                  INPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIF 
+            IF (NUM_ARGS == 2) THEN
+                  OUTPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIf            
+            oldI=I+1
+          END IF
+        ENDDO
+      !ENDIF
+
+      ! Process the arguments (example)
+      !IF (NUM_ARGS > 0) THEN
+      !  PRINT *, "Number of arguments:", NUM_ARGS
+
+      !  DO I = 1, NUM_ARGS
+      !    CALL GETENV("COMMAND_"//I, ARGUMENT)  ! Get each argument from environment
+      !    PRINT *, "Argument", I, ":", ARGUMENT
+      !    IF (I == 1) THEN
+      !      INPUTFILE = ARGUMENT(1:LEN(ARGUMENT))
+      !    ENDIF 
+      !    IF (I==2) THEN
+      !      OUTPUTFILE = ARGUMENT(1:LEN(ARGUMENT))
+      !    ENDIF
+      !  ENDDO
+      Call stripstring(INPUTFILE, I)
+      PRINT *, "Inputfile ", INPUTFILE(1:I), " will be read"
+      call stripstring(OUTPUTFILE, I)
+      PRINT *, "Outputfile ", OUTPUTFILE(1:I), " will be written to"
+
+        ! Example: Check for a specific argument
+        !IF (NUM_ARGS > 0 .AND. ARGUMENT(1:LEN(ARGUMENT)) == "-help") THEN
+        !  PRINT *, "Help message:"
+        !  PRINT *, "This program takes several command-line arguments."
+        !ENDIF
+
+      ! ELSE
+      !   PRINT *, "No command-line arguments provided."
+      ! ENDIF
+
+      RETURN
+      END
+
+      SUBROUTINE stripstring(string, size)
+
+      implicit NONE
+
+      CHARACTER*1024 string
+      INTEGER size, I
+
+      size=1
+      DO I = 1, LEN(string)
+          IF (string(I:I) == ' ' .AND. size == 1) THEN
+            size=I-1
+          END IF
+      end do
+      
+      return 
+      end
