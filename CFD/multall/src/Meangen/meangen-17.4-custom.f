@@ -57,13 +57,15 @@ C
       CHARACTER*3   FLO_TYP
       CHARACTER*72  DUMMY_LINE
       INTEGER stringsize 
-      CHARACTER*1024 inputfile, outputfile
+      CHARACTER*1024 inputfile, outputfilebase
+      CHARACTER*1024 out1, out2
 C
-      call GETCOMMANDLINE(inputfile, outputfile)
+      call GETCOMMANDLINE(inputfile, outputfilebase)
       call stripstring(inputfile, stringsize)
       OPEN(UNIT=5, FILE=inputfile(1:stringsize))
-      call stripstring(outputfile, stringsize)
-      OPEN(UNIT=10, FILE=outputfile(1:stringsize))
+      call stripstring(outputfilebase, stringsize)
+      out1=outputfilebase(1:stringsize)//'_meangen.out'
+      OPEN(UNIT=10, FILE=out1)
 C     Change this to be passed a string ??? PJE
 C     OPEN(UNIT=10, FILE= 'meangen.out')
 C     OPEN(UNIT=5,  FILE= '/dev/tty')
@@ -2327,8 +2329,9 @@ C************************************************************************
 C    
 C      WRITE OUTPUT FOR  STAGEN
 C
-C     Change this output an argument to be passed ??? PJE
-      OPEN(UNIT=9, FILE= 'stagen.dat')
+      call stripstring(outputfilebase, stringsize)
+      out2=outputfilebase(1:stringsize)//'_stagen.dat'
+      OPEN(UNIT=9, FILE=out2)
 C
       WRITE(9,9000) RGAS, GAMM
  9000 FORMAT(2F12.4,T25, ' GAS CONSTANT, GAMMA')
@@ -3144,7 +3147,7 @@ C******************************************************************************
           IF (string(I:I) == ' ' .AND. size == 1) THEN
             size=I-1
           END IF
-      end do
+      END DO
       
       return 
       end

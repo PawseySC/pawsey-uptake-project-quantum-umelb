@@ -3965,7 +3965,7 @@ C******************************************************************************
 C    CALL MIX_BCONDS TO WRITE OUT THE PITCHWISE AVERAGE VALUES AT THE MIXING PLANES.
 C
       IF(IFEND.EQ.1) THEN
-      CALL MIX_BCONDS(1)
+      CALL MIX_BCONDS(1, outputfilebase)
       END IF
 C
 C*******************************************************************************
@@ -9460,6 +9460,7 @@ C    WRITE A FILE TO PLOT THE ENTROPY LOSS COEFFICIENT OR LOST EFFICIENCY'
 C  
       IF(IFEND.EQ.1) THEN   
 c      OPEN(UNIT=23,FILE='loss-co.plt')
+      call stripstring(outputfilebase,stringsize)
       OPEN(UNIT=23,FILE=outputfilebase(1:stringsize)//'loss-co.plt')
       WRITE(23,*) ' PLOTTING OUTPUT FOR LOST EFFICIENCY '
       WRITE(23,*) ' NUMBER OF OUTPUT POINTS ', JM
@@ -10556,7 +10557,7 @@ C******************************************************************************
 C******************************************************************************
 C******************************************************************************
 C
-      SUBROUTINE MIX_BCONDS(IFOUT)
+      SUBROUTINE MIX_BCONDS(IFOUT, outputfilebase)
 C
 C***********************************************************************
 C     WRITE THE MASS AVERAGE VALUES AT EXIT TO A FILE 'outbconds'
@@ -10565,8 +10566,11 @@ C
       INCLUDE 'commall-open-18.2'
 C
       DIMENSION FAVG(KD)
+      INTEGER stringsize
+      CHARACTER*1024 outputfilebase
+      
 C
-      OPEN(UNIT = 12,FILE ='mixbconds')
+      OPEN(UNIT = 12,FILE =outputfilebase(1:stringsize)//'mixbconds')
 C
 C     CALCULATE AND WRITE OUT THE EXIT STAGNATION PRESSURE.
 C

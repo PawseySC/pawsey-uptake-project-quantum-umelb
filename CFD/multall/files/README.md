@@ -46,8 +46,8 @@ export MULTALL_ARGS="intpufile outbasefilename "
 This allows a simple python like workflow of 
 ```python
 job_id : int = 1
-os.environ["MEANGEN_ARGS"]=f"meangen_{job_id}.in stagen_{job_id}.dat "
-os.environ["STAGEN_ARGS"]=f"stagen_{job_id}.dat stagen_out_{job_id} "
+os.environ["MEANGEN_ARGS"]=f"meangen_{job_id}.in meangen_{job_id} "
+os.environ["STAGEN_ARGS"]=f"meangen_{job_id}_stagen.dat stagen_out_{job_id} "
 os.environ["MULTALL_ARGS"]=f"stagen_out_{job_id}_new.dat multall_{job_id} "
 
 cmds : List[str] = ["meangen", "stagen", "multall"]
