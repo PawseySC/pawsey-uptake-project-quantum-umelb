@@ -5111,7 +5111,7 @@ C
 C     This could be kept but means that it will output data to current working directory ??? PJE
 c      OPEN(UNIT=21,FILE='grid_out',form= 'unformatted' )
       call stripstring(outputfilebase, stringsize)
-      OPEN(UNIT=21,FILE=outputfilebase(1:stringsize)//'grid_out',
+      OPEN(UNIT=21,FILE=outputfilebase(1:stringsize)//'_grid_out',
      &form= 'unformatted' )
 C
       WRITE(21) NSTEPS_MAX
@@ -9461,7 +9461,7 @@ C
       IF(IFEND.EQ.1) THEN   
 c      OPEN(UNIT=23,FILE='loss-co.plt')
       call stripstring(outputfilebase,stringsize)
-      OPEN(UNIT=23,FILE=outputfilebase(1:stringsize)//'loss-co.plt')
+      OPEN(UNIT=23,FILE=outputfilebase(1:stringsize)//'_loss-co.plt')
       WRITE(23,*) ' PLOTTING OUTPUT FOR LOST EFFICIENCY '
       WRITE(23,*) ' NUMBER OF OUTPUT POINTS ', JM
       WRITE(23,*) ' MERIDIONAL DISTANCE '
