@@ -33,6 +33,10 @@ C
 C
        CHARACTER*72  LABEL,ROWTIT,dummy line,HEADING, INFILE
        CHARACTER*1   ANS
+       
+      INTEGER stringsize 
+      CHARACTER*1024 inputfile, outputfilebase, out1, out2, out3
+
 C 
 C     SET THE INPUT AND OUTPUT UNITS
 C
@@ -48,25 +52,49 @@ C     THE FILE 'stage_new.dat' IS AN INPUT FILE FOR THE MULTISTAGE 3D PROGRAM
 C     "MULTALL"  IN THE NEW (Post 2016) FORMAT.
 C
 C      OPEN  (UNIT=1,FILE='/dev/tty')
-      INFILE   = 'stagen.dat'
-      WRITE(6,*) ' The input file is usually named "stagen.dat" .'
-      WRITE(6,*) ' Is this OK ?  Answer Y or N '
-      READ(5,*) ANS
-      IF(ANS.EQ.'N'.OR.ANS.EQ.'n') THEN
-           WRITE(6,*) ' INPUT THE NAME OF THE INPUT FILE'
-           READ(5,1080) INFILE
-      END IF
+
+C     Change this to take a command line argument ??? PJE 
+      CALL GETCOMMANDLINE(inputfile, outputfilebase)
+      call stripstring(inputfile, stringsize)
+      
+c      INFILE   = 'stagen.dat'
+c      WRITE(6,*) ' The input file is usually named "stagen.dat" .'
+c      WRITE(6,*) ' Is this OK ?  Answer Y or N '
+c      READ(5,*) ANS
+c      IF(ANS.EQ.'N'.OR.ANS.EQ.'n') THEN
+c           WRITE(6,*) ' INPUT THE NAME OF THE INPUT FILE'
+c           READ(5,1080) INFILE
+c      END IF
 C
  1080 FORMAT(A80)
 C
 C
-      WRITE(6,*) ' Input file = ' ,INFILE
+c      WRITE(6,*) ' Input file = ' ,INFILE
 C
-      OPEN(UNIT=7,FILE= INFILE)
+c      OPEN(UNIT=7,FILE= INFILE)
+      OPEN(UNIT=7, FILE=inputfile(1:stringsize))
 C
-      OPEN(UNIT=8,FILE=  'stagen.out')
-      OPEN(UNIT=4,FILE=  'stage_old.dat')
-      OPEN(UNIT=10,FILE= 'stage_new.dat')
+C     Change this to arguments to be passed with a given naming convention ??? PJE
+C     .out = unused
+C     _old.dat = old output format 
+C     _new.dat = new and currently used output format for multall
+c      OPEN(UNIT=8,FILE=  'stagen.out')
+c      OPEN(UNIT=4,FILE=  'stage_old.dat')
+c      OPEN(UNIT=10,FILE= 'stage_new.dat')
+
+      call stripstring(outputfilebase, stringsize)
+      out1=outputfilebase(1:stringsize) // ".out "
+      out2=outputfilebase(1:stringsize) // "_old.dat "
+      out3=outputfilebase(1:stringsize) // "_new.dat "
+
+      call stripstring(out1,stringsize)
+      OPEN(UNIT=8, FILE=out1(1:stringsize))
+      call stripstring(out2,stringsize)
+      OPEN(UNIT=4, FILE=out2(1:stringsize))
+      call stripstring(out3,stringsize)
+      OPEN(UNIT=10, FILE=out3(1:stringsize))
+
+
 C
       PI      = 3.1415927
       DEGRAD  = PI/180.
@@ -2494,4 +2522,52 @@ C
       RETURN
       END
 
+C     **********
+      SUBROUTINE GETCOMMANDLINE(INPUTFILE, OUTPUTFILE)
 
+      IMPLICIT NONE   
+
+      CHARACTER*4096 ARGUMENT
+      INTEGER I, oldI, NUM_ARGS
+      CHARACTER*1024 INPUTFILE, OUTPUTFILE
+
+      NUM_ARGS = 0
+      oldI = 1
+        CALL GETENV("STAGEN_ARGS", ARGUMENT)
+        DO I = 1, LEN(ARGUMENT)
+          IF (ARGUMENT(I:I) == ' ') THEN
+            NUM_ARGS = NUM_ARGS + 1
+            IF (NUM_ARGS == 1) THEN
+                  INPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIF 
+            IF (NUM_ARGS == 2) THEN
+                  OUTPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIf            
+            oldI=I+1
+          END IF
+        ENDDO
+
+      Call stripstring(INPUTFILE, I)
+      PRINT *, "Inputfile ", INPUTFILE(1:I), " will be read"
+      call stripstring(OUTPUTFILE, I)
+      PRINT *, "Outputfile ", OUTPUTFILE(1:I), " will be written to"
+
+      RETURN
+      END
+
+      SUBROUTINE stripstring(string, size)
+
+      implicit NONE
+
+      CHARACTER*1024 string
+      INTEGER size, I
+
+      size=1
+      DO I = 1, LEN(string)
+          IF (string(I:I) == ' ' .AND. size == 1) THEN
+            size=I-1
+          END IF
+      end do
+      
+      return 
+      end
