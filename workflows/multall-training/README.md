@@ -11,7 +11,9 @@ It can be run as simply as
 ```bash
 python3 multall_flow.py
 ```
-Though it is likely useful to spin up a local prefect database and prefect server (see scripts in qbitbridge)
+Though it is likely useful to spin up a local prefect database and prefect server (see scripts in qbitbridge).
+
+Make sure to copy the cluster configuration file to the qbitbridge/workflow/clusters/ directory
 
 ## Issues
 The issue currently is that environment variables must be created to pass long file names and arguments which means you cannot concurrently 
