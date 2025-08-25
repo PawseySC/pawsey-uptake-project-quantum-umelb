@@ -3846,7 +3846,7 @@ C
       IF(IF_REPEAT.GT.0)     THEN
       IF(MOD(N,NINMOD).EQ.0) THEN
 C
-      CALL MIX_BCONDS(1)
+      CALL MIX_BCONDS(1, outputfilebase)
 C
       CALL NEWBCONDS                 
 C
@@ -10570,7 +10570,7 @@ C
       CHARACTER*1024 outputfilebase
       
 C
-      OPEN(UNIT = 12,FILE =outputfilebase(1:stringsize)//'mixbconds')
+      OPEN(UNIT = 12,FILE =outputfilebase(1:stringsize)//'_mixbconds')
 C
 C     CALCULATE AND WRITE OUT THE EXIT STAGNATION PRESSURE.
 C
