@@ -10570,6 +10570,7 @@ C
       CHARACTER*1024 outputfilebase
       
 C
+      call stripstring(outputfilebase, stringsize)
       OPEN(UNIT = 12,FILE =outputfilebase(1:stringsize)//'_mixbconds')
 C
 C     CALCULATE AND WRITE OUT THE EXIT STAGNATION PRESSURE.
