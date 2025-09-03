@@ -22,7 +22,7 @@ import subprocess
 import shutil
 import itertools
 import hashlib
-
+import pandas
 
 def copy_and_replace(
     source_file: str,
@@ -60,61 +60,126 @@ def copy_and_replace(
         return False  # Indicate failure
 
 
-def update_meangen_in(
+def update_multall_input(
     template_name: str,
     output_name: str,
     param_set: List[Tuple[str,str]],
 ) -> None:
     copy_and_replace(template_name, output_name, param_set)
-    pass
+    
+
+def process_multall_output(
+        input : str, 
+        inletkeystrings : List[str] = [
+            "INLET AND EXIT STAGNATION PRESSURES",
+            "INLET AND EXIT STATIC PRESSURES",
+            "INLET AND EXIT STAGNATION TEMPERATURES",
+            "INLET AND OUTLET MASS FLOW RATES",
+        ],
+        efficiencykeystrings : List[str] = [
+            "TOTAL TO TOTAL ISENTROPIC EFFICIENCY",
+            "TOTAL TO STATIC ISENTROPIC EFFICIENCY",
+            "TOTAL TO TOTAL POLYTROPIC EFFICIENCY",
+        ],
+        tempkeystring: List[str]= [
+            "INLET, MID and EXIT STATIC TEMPERATURES",
+        ]
+) -> Dict:
+    # convert the string to a list find last instance of relevant strings
+    input = input.strip().split('\n')
+    input.reverse()
+    data = {}
+    for key in inletkeystrings:
+        for i in input:
+            if key in i:
+                data[key] = str(i.split("=")[-1]).split()
+                break
+        
+    for key in efficiencykeystrings:
+        for i in input:
+            if key in i:
+                data[key] = (i.split("=")[-1]).split()
+                break
+
+    for key in tempkeystring:
+        for i in input:
+            if key in i:
+                data[key] = str(i.split("=")[-1]).split()
+                break
+    return data 
+
+def process_and_write_multall_output(
+        rawresults : Dict, 
+        data : Dict,
+        output_name : str) -> None:
+    """process and save relevant output from all multall runs"""
+    for key in results.keys():
+        i = data["pname"].index(key)
+        data["TOTAL TO TOTAL ISENTROPIC EFFICIENCY"][i]=float(results[key]["TOTAL TO TOTAL ISENTROPIC EFFICIENCY"][0])
+    df1 = pandas.DataFrame(data)
+    # need to figure out best way of saving results
+    # for now we produce a csv file with results 
+    df1.to_csv(f"{output_name}.csv")    
 
 
 @task
 def run_multall(
     param_set_name: str,
-    meangen_template: str,
     param_set: List[Tuple[str, str]],
+    multallexecs: List[str],
+    execdir : str ,
+    meangen_template: str | None = None,
+    stagen_template: str | None = None,
     outdir: str = "./",
-    multallexecs: List[str] = ["meangen", "stagen", "multall"],
-    execdir : str = "/software/projects/pawsey0001/pelahi/pawsey-uptake-project-quantum-umelb/CFD/multall/bin/"
 ) -> Any:
     """
     Task running the process to get multall output given a meangen input
     """
     if outdir[-1] != "/":
         outdir+="/"
-    os.environ["MEANGEN_ARGS"] = (
-        f"{outdir}meangen_{param_set_name}.in {outdir}meangen_{param_set_name} "
-    )
-    os.environ["STAGEN_ARGS"] = (
-        f"{outdir}/meangen_{param_set_name}_stagen.dat {outdir}stagen_out_{param_set_name} "
-    )
-    os.environ["MULTALL_ARGS"] = (
-        f"{outdir}/stagen_out_{param_set_name}_new.dat {outdir}multall_{param_set_name} "
-    )
     logger = get_run_logger()
     logger.info(f"Running multall for {param_set_name}")
     os.mkdir(outdir)
 
     info: Dict[str, str] = {}
-    update_meangen_in(
-        meangen_template,
-        f"{outdir}meangen_{param_set_name}.in",
-        param_set = param_set,
-    )
+    if meangen_template is not None:
+        update_multall_input(
+            meangen_template,
+            f"{outdir}meangen_{param_set_name}.in",
+            param_set = param_set,
+        )
+    if stagen_template is not None:
+        update_multall_input(
+            stagen_template,
+            f"{outdir}meangen_{param_set_name}_stagen.dat",
+            param_set = param_set,
+        )
+        multallexecs = ["stagen", "multall"]
+
     for cmd in multallexecs:
+        scriptname = f"{outdir}run_{cmd}.sh"
+        with open(scriptname, 'w') as f:
+            f.write(f"#!/bin/bash\n")
+            f.write(f"cd {outdir} \n")
+            f.write(f"export MEANGEN_ARGS=\"meangen_{param_set_name}.in meangen_{param_set_name} \"\n")
+            f.write(f"export STAGEN_ARGS=\"meangen_{param_set_name}_stagen.dat stagen_out_{param_set_name} \"\n")
+            f.write(f"export MULTALL_ARGS=\"stagen_out_{param_set_name}_new.dat multall_{param_set_name} \"\n")
+            f.write(f"{execdir}/{cmd}\n")
+        os.chmod(scriptname, 0o755)
+        logger.info(f"Running {cmd} ...")
         process = subprocess.run(
-            [f"{execdir}/{cmd}"],
+            [scriptname],
             capture_output=True,
             text=True,
         )
         # do some post processing of output if required
         info[cmd] = process.stdout
-        logger.info(f"{cmd}")
-        logger.info(f"{info[cmd]}")
-    # parse the info from multall
-    result = info["multall"]
+        with open(f"{outdir}{cmd}.log", "w") as f:
+            f.write(info[cmd])
+        logger.info(f"Finished running {cmd}")
 
+    # parse the info from multall
+    result = process_multall_output(info["multall"])
     return result
 
 
@@ -150,54 +215,97 @@ def multall_create_param_set(params: Dict[str, Any]) -> Tuple[List, List]:
 )
 async def multall_workflow(
     myqpuworkflow: HybridQuantumWorkflowBase,
-    meangen_template: str,
+    meangen_template: str | None,
+    stagen_template: str | None, 
     params: Dict[str, Any],
+    output_name : str = "multall_runs", 
     run_name : str = "run",
+    multallexecs: List[str] = ["meangen", "stagen", "multall"],
+    execdir : str = "/software/projects/pawsey0001/pelahi/pawsey-uptake-project-quantum-umelb/CFD/multall/bin/",
+    hash_length : int = 6,
+    resultkeys : List[str] = [
+        "INLET STAGNATION PRESSURE",
+        "EXIT STAGNATION PRESSURE",
+        "INLET STATIC PRESSURE",
+        "EXIT STATIC PRESSURE",
+        "INLET STAGNATION TEMPERATURE",
+        "EXIT STAGNATION TEMPERATURE",
+        "INLET MASS OUTFLOW RATE",
+        "EXIT MASS OUTFLOW RATE",
+        "TOTAL TO TOTAL ISENTROPIC EFFICIENCY",
+        "TOTAL TO STATIC ISENTROPIC EFFICIENCY",
+        "TOTAL TO TOTAL POLYTROPIC EFFICIENCY",
+        "INLET STATIC TEMPERATURE",
+        "MID STATIC TEMPERATURES",
+        "EXIT STATIC TEMPERATURES",
+    ],
     date: datetime.datetime = datetime.datetime.now(),
 ) -> None:
-    """Flow for running cpu based programs.
+    """Flow for running multall 
 
-    arguments (str): string of arguments to pass extra options to run cpu
     """
     logger = get_run_logger()
     logger.info(f"Launching multall CPU flow")
+    for exec in multallexecs:
+        if not os.path.exists(f"{execdir}/{exec}"):
+            raise ValueError(f"Executable {exec} in path {execdir} does not exist")
+
     param_names, param_values = multall_create_param_set.fn(params)
 
+    # initialize the data dictionary
+    data = {
+        "pname" : [None for i in range(len(param_values))],
+        "outdir": [None for i in range(len(param_values))],
+    }
+    for key in param_names:
+        data[key] = [None for i in range(len(param_values))]
+    for key in resultkeys:
+        data[key] = [None for i in range(len(param_values))]
+
     # submit the task and wait for results
-    futures = []
-    counter = 1
+    counter = 0
+    futures = {}
     for param_vals in param_values:
         pset = list()
-        pname = ""
+        pname = list()
         for i in range(len(param_names)):
             pset.append((param_names[i], str(param_vals[i])))
-            pname += f"{param_names[i]}={param_vals[i]}-"
-        pname = pname[:-1]
-        pname = pname.encode('utf-8')
+            pname.append(f"{param_names[i]}_{param_vals[i]}")
+        pname = "-".join(pname)
         # Create a SHA-256 hash object
         sha256_hash = hashlib.sha256()
         # Update the hash object with the input bytes
-        sha256_hash.update(pname)   
-        hex_digest = sha256_hash.hexdigest()
+        sha256_hash.update(pname.encode('utf-8'))
+        # take the first n from the hash
+        hex_digest = sha256_hash.hexdigest()[:hash_length]
         outdir = f"{run_name}-{hex_digest}/"
         if not os.path.isdir(outdir):
-            futures.append(
-                run_multall.submit(
+            futures[pname] = run_multall.submit(
                     param_set_name=pname,
                     param_set=pset,
+                    multallexecs=multallexecs,
+                    execdir=execdir,
                     meangen_template=meangen_template,
+                    stagen_template=stagen_template,
                     outdir=outdir,
-                )
-            )
-        counter += 1
-    for f in futures:
-        f.result()
 
+                )
+            data["pname"][counter]=pname
+            for p in param_names:
+                data[p][counter]=param_vals[i]
+            data["outdir"][counter]=outdir
+        counter += 1
+    results = {}
+    # get the results from running the multall tasks
+    for key in futures.keys():
+        results[key] = futures[key].result()
+    process_and_write_multall_output(results, data, output_name)
     logger.info("Finished multall CPU flow")
 
 
 def wrapper_to_async_flow(
     meangen_template: str = "./meangen.in.template",
+    stagen_template: str | None = None, #"./stagen.in.template",
     params: Dict[str, Any] = {
         "FLOW_ANGLE": np.arange(0, 10, 5),
         "FLOW_SPEED": None,
@@ -224,16 +332,24 @@ def wrapper_to_async_flow(
         eventloc=f"{os.path.dirname(os.path.abspath(__file__))}/events/",
     )
 
-    # construct
+    if stagen_template is not None:
+        if not os.path.exists(stagen_template):
+            raise ValueError(f"Stagen file {stagen_template} does not exist")
+        # just bypass meangen if stagen template is used 
+        meangen_template = None
+
+    if meangen_template is not None:
+        if not os.path.exists(meangen_template):
+            raise ValueError(f"Meangen file {meangen_template} does not exist")
 
     asyncio.run(
         multall_workflow.with_options(task_runner=myflow.gettaskrunner("cpu"))(
             myqpuworkflow=myflow,
-            meangen_template=meangen_template, 
-            params = params
+            meangen_template=meangen_template,
+            stagen_template=stagen_template, 
+            params = params,
         )
     )
-
 
 if __name__ == "__main__":
     yaml_template = None
