@@ -87,13 +87,28 @@ C                            SUBROUTINES.
 C   
 C
       CHARACTER*1 ANSIN
+      INTEGER stringsize 
+      CHARACTER*1024 inputfile, outputfilebase
+      CHARACTER*1024 out1, out2, out3, out4, out5
+
 C
-      OPEN(UNIT=1,FILE='/dev/tty')
-      OPEN(UNIT=4,FILE ='stage.log')
-      OPEN(UNIT=7,FILE ='flow_out',   FORM = 'unformatted')
-      OPEN(UNIT=11,FILE='global.plt', FORM = 'unformatted')
-      OPEN(UNIT=3,FILE ='results.out')
-      OPEN(UNIT=12,FILE='stopit')
+c      OPEN(UNIT=1,FILE='/dev/tty')
+c      OPEN(UNIT=4,FILE ='stage.log')
+c      OPEN(UNIT=7,FILE ='flow_out',   FORM = 'unformatted')
+c      OPEN(UNIT=11,FILE='global.plt', FORM = 'unformatted')
+c      OPEN(UNIT=3,FILE ='results.out')
+c      OPEN(UNIT=12,FILE='stopit')
+      CALL GETCOMMANDLINE(inputfile, outputfilebase)
+
+c      OPEN(UNIT=1,FILE='/dev/tty')
+      call stripstring(outputfilebase, stringsize)
+      OPEN(UNIT=4, FILE=outputfilebase(1:stringsize)//'_stage.log')
+      OPEN(UNIT=7, FILE=outputfilebase(1:stringsize)//'_flow_out'
+     &,  FORM = 'unformatted')
+      OPEN(UNIT=11,FILE=outputfilebase(1:stringsize)//'_global.plt'
+     &, FORM = 'unformatted')
+      OPEN(UNIT=3, FILE=outputfilebase(1:stringsize)//'_results.out')
+      OPEN(UNIT=12,FILE=outputfilebase(1:stringsize)//'_stopit')
 C
       IFSTOP = 0
       WRITE(12,*) IFSTOP
@@ -102,39 +117,44 @@ C
 C******************************************************************************
 C     DECIDE WHICH INPUT STYLE TO USE
 C
-      OPEN(UNIT=13,FILE='intype')
-            READ(13,*,END=10,ERR=10)   ANSIN
-      GO TO 20
-   10 WRITE(6,*) 'STOPPING BECAUSE FILE  "intype" DOES NOT EXIST '
-      STOP 
+
+C     Change this to comment it out as this was to change format from old to new from stagen
+C     and now we just use new type ??? PJE
+c      OPEN(UNIT=13,FILE='intype')
+c            READ(13,*,END=10,ERR=10)   ANSIN
+c      GO TO 20
+c   10 WRITE(6,*) 'STOPPING BECAUSE FILE  "intype" DOES NOT EXIST '
+c      STOP 
 C
-   20 CONTINUE
+c   20 CONTINUE
 C
-      CLOSE(13)
+c      CLOSE(13)
 C
-      IF(ANSIN.EQ.'N'.OR.ANSIN.EQ.'n') THEN
-             WRITE(6,*) ' NEW_READIN DATA FORMAT SPECIFIED.'
-             CALL NEW_READIN
-      ELSE
+c      IF(ANSIN.EQ.'N'.OR.ANSIN.EQ.'n') THEN
+c             WRITE(6,*) ' NEW_READIN DATA FORMAT SPECIFIED.'
+c             CALL NEW_READIN
+c      ELSE
 C
-      IF(ANSIN.EQ.'O'.OR.ANSIN.EQ.'o')THEN
-             WRITE(6,*)' OLD_READIN DATA FORMAT SPECIFIED.'
-             CALL OLD_READIN
-      ELSE
+c      IF(ANSIN.EQ.'O'.OR.ANSIN.EQ.'o')THEN
+c             WRITE(6,*)' OLD_READIN DATA FORMAT SPECIFIED.'
+c             CALL OLD_READIN
+c      ELSE
 C
-      WRITE(6,*) ' STOPPING BECAUSE FILE "intype" DOES NOT CONTAIN  "O" 
-     & OR  "N" '
-      STOP
+c      WRITE(6,*) ' STOPPING BECAUSE FILE "intype" DOES NOT CONTAIN  "O" 
+c     & OR  "N" '
+c      STOP
 C
-      END IF
+c      END IF
 C
-      END IF
+c      END IF
+      ANSIN='N'
+      CALL NEW_READIN(inputfile)
 C******************************************************************************
 C 
-      CALL SETUP(ANSIN)
+      CALL SETUP(ANSIN, outputfilebase)
 C
 C   LOOP calls  many other subroutines, especially TSTEP .
-      CALL LOOP
+      CALL LOOP(outputfilebase)
 C
 C*********************************************************************************
 C
@@ -145,11 +165,10 @@ C*******************************************************************************
 C**************************************************************************************
 C**************************************************************************************
 C
-      SUBROUTINE NEW_READIN
+      SUBROUTINE NEW_READIN(inputfile)
 C
 C       THIS SUBROUTINE READS IN THE DATA IN
 C       ====================
-
 C
       INCLUDE 'commall-open-18.2'
 C
@@ -163,6 +182,9 @@ C
       DIMENSION XHUB(JD),RHUB(JD),XTIP(JD),RTIP(JD),XQO(MAXKI),
      &          RQO(MAXKI),XNEWHUB(JD),RNEWHUB(JD),XNEWTIP(JD),
      &          RNEWTIP(JD)
+
+      INTEGER stringsize
+      CHARACTER*1024 inputfile
 C
 C       START OF INPUT SECTION
 C       THROUGHOUT THE INPUT SECTION THE VARIABLES ARE AS FOLLOWS
@@ -196,9 +218,11 @@ C*******************************************************************************
 C
 C     INPUT A TITLE FOR THE RUN. ANY CHARACTERS IN ROWS 1 to 72.
 C
+      call stripstring(inputfile, stringsize)
+      OPEN(UNIT=15, FILE=inputfile(1:stringsize))
       WRITE(6,*)
       WRITE(6,*)
-      READ(5,1200)  TITLE
+      READ(15,1200)  TITLE
       WRITE(6,1200) TITLE
       WRITE(6,*)
       WRITE(6,*)
@@ -208,8 +232,8 @@ C
       IFGAS = 0
       CP = 1005.0
       GA = 1.4
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=7000) CP,GA
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=7000) CP,GA
  7000 CONTINUE
       WRITE(6,*) ' GAS PROPERTIES:    CP = ', CP, ' GAMMA = ',GA
       WRITE(6,*)
@@ -224,7 +248,7 @@ C
       CP3  = 0.000015625
       TREF = 1400.0
       RGAS = 287.15
-      READ(5,*,ERR=7001) CP1, CP2, CP3, TREF, RGAS
+      READ(15,*,ERR=7001) CP1, CP2, CP3, TREF, RGAS
  7001 CONTINUE
 C
       WRITE(6,*) ' IDEAL GAS PROPERTIES READ IN '
@@ -244,8 +268,8 @@ C******************************************************************************
 C    INPUT THE TIME STEPPING OPTION, 3 , 4 , -4,  5 or 6 . DEFAULT = 3 .
 C
       ITIMST = 3
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR= 7002) ITIMST
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR= 7002) ITIMST
  7002 CONTINUE
       WRITE(6,*) ' TIME STEP TYPE , ITIMST = ', ITIMST
       WRITE(6,*)
@@ -272,7 +296,7 @@ C
       END IF
 C
       IF(ITIMST.EQ.4.OR.ITIMST.EQ.-4) THEN
-              READ(5,*) F1, F2EFF, F3 , RSMTH, NRSMTH
+              READ(15,*) F1, F2EFF, F3 , RSMTH, NRSMTH
               WRITE(6,*) ' F1, F2EFF, F3 , RSMTH, NRSMTH ',
      &                     F1, F2EFF, F3 , RSMTH, NRSMTH
               WRITE(6,*)
@@ -309,9 +333,9 @@ C
       RF_VSOUND = 0.002
       DENSTY    = 1.20
       VS_VMAX   = 2.0
-      IF(ITIMST.EQ.5)  READ(5,*,END= 2350)
+      IF(ITIMST.EQ.5)  READ(15,*,END= 2350)
      &  VSOUND, RF_PTRU, RF_VSOUND, VS_VMAX
-      IF(ITIMST.EQ.6)  READ(5,*,END= 2350)
+      IF(ITIMST.EQ.6)  READ(15,*,END= 2350)
      &  VSOUND, RF_PTRU, RF_VSOUND, VS_VMAX, DENSTY
  2350 CONTINUE
          RF_PTRU1    = 1.0 - RF_PTRU
@@ -335,8 +359,8 @@ C
       DAMPIN  = 10.0
       MACHLIM = 2.0
       F_PDOWN = 0.0
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,END=7003) CFL, DAMPIN, MACHLIM, F_PDOWN
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,END=7003) CFL, DAMPIN, MACHLIM, F_PDOWN
  7003 CONTINUE
       WRITE(6,*) ' CFL NUMBER = ', CFL,' DAMPING FACTOR = ',DAMPIN,
      & ' MACHLIM = ',MACHLIM, ' F_PDOWN = ', F_PDOWN
@@ -348,8 +372,8 @@ C    SET  "IF_RESTART"  = 1 TO START FROM A RESTART FILE.
 C    THE COMBINED RESTART AND PLOTTING FILE,  "flow_out"   IS ALWAYS WRITTEN.
 C
       IF_RESTART  = 0
-      READ(5,*)            DUMMY_INPUT
-      READ(5,*,ERR = 7017) IF_RESTART
+      READ(15,*)            DUMMY_INPUT
+      READ(15,*,ERR = 7017) IF_RESTART
  7017 CONTINUE
       WRITE(6,*) 'RESTART FILE OPTIONS, IF_RESTART= ',IF_RESTART
       WRITE(6,*)
@@ -359,8 +383,8 @@ C   INPUT THE MAXIMUM NUMBER OF TIME STEPS AND CONVERGENCE LIMIT.
 C
       NSTEPS_MAX = 5000
       CONLIM     = 0.005
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR = 7004) NSTEPS_MAX, CONLIM
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR = 7004) NSTEPS_MAX, CONLIM
  7004 CONTINUE
       WRITE(6,*) ' MAXIMUM TIME STEPS= ',NSTEPS_MAX,
      &           ' CONVERGENCE LIMIT = ',CONLIM
@@ -375,8 +399,8 @@ C
       SFTIN   = 0.005
       FAC_4TH = 0.8
       NCHANGE = NSTEPS_MAX/4
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=7005) SFXIN,SFTIN,FAC_4TH,NCHANGE
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=7005) SFXIN,SFTIN,FAC_4TH,NCHANGE
  7005 CONTINUE
 C    8/4/2017.  SET NCHANGE = 100 IF STARTING FROM A RESTART FILE.
       IF(IF_RESTART.NE.0) NCHANGE = 100
@@ -388,16 +412,16 @@ C******************************************************************************
 C******************************************************************************
 C   INPUT THE NUMBER OF BLADE ROWS TO BE CALCULATED
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    NROWS
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    NROWS
       WRITE(6,*) ' NUMBER OF BLADE ROWS TO BE CALCULATED = ',NROWS
       WRITE(6,*)
 C
 C**************************************************************************
 C   INPUT THE NUMBER OF GRID POINTS IN THE PITCHWISE (I) AND SPANWISE (K) DIRECTIONS.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    IM,KM
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    IM,KM
       WRITE(6,*) ' NUMBER OF PITCHWISE GRID POINTS = ',IM
       WRITE(6,*) ' NUMBER OF SPANWISE GRID POINTS  = ',KM
       IMM1 = IM-1
@@ -409,9 +433,9 @@ C
 C
 C
 C   INPUT THE RELATIVE SPACING OF THE GRID POINTS IN THE PITCHWISE DIRECTION. 
-      READ(5,*)     DUMMY_INPUT
+      READ(15,*)     DUMMY_INPUT
       WRITE(6,*)    DUMMY_INPUT
-      READ(5,*)    (FP(I),I=1,IMM1)
+      READ(15,*)    (FP(I),I=1,IMM1)
       WRITE(6,*) ' RELATIVE SPACING OF THE GRID POINTS IN THE PITCHWISE
      & DIRECTION .'
       WRITE(6,*) ' THIS IS THE SAME FOR ALL BLADE ROWS.'
@@ -419,9 +443,9 @@ C   INPUT THE RELATIVE SPACING OF THE GRID POINTS IN THE PITCHWISE DIRECTION.
       WRITE(6,*)
 C
 C   INPUT THE RELATIVE SPACING OF THE GRID POINTS IN THE SPANWISE DIRECTION.'
-      READ(5,*)      DUMMY_INPUT
+      READ(15,*)      DUMMY_INPUT
       WRITE(6,*)     DUMMY_INPUT
-      READ(5,*)     (FR(K),K=1,KMM1)
+      READ(15,*)     (FR(K),K=1,KMM1)
       WRITE(6,*) ' RELATIVE SPACING OF THE GRID POINTS IN THE SPANWISE
      & DIRECTION .'
       WRITE(6,*) ' THIS IS THE SAME FOR ALL BLADE ROWS.'
@@ -436,8 +460,8 @@ C
       IRBB = 9
       JRBB = 9
       KRBB = 9
-      READ(5,*) DUMMY_INPUT
-      READ (5,*,ERR=7007) IR,JR,KR,IRBB,JRBB,KRBB
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=7007) IR,JR,KR,IRBB,JRBB,KRBB
  7007 CONTINUE
       IF(KM.EQ.2) THEN
            KR   = 1
@@ -457,8 +481,8 @@ C
       FBLK1 = 0.4
       FBLK2 = 0.2
       FBLK3 = 0.1
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=8007) FBLK1,FBLK2,FBLK3
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=8007) FBLK1,FBLK2,FBLK3
       WRITE(6,*) ' MULTIGRID TIME STEP FACTORS= ',FBLK1,FBLK2,FBLK3
  8007 CONTINUE
       WRITE(6,*)
@@ -467,8 +491,8 @@ C******************************************************************************
 C    READ IN THE MIXING PLANE PARAMETERS
 C
       IFMIX = 1
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*,ERR=7009) IFMIX
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*,ERR=7009) IFMIX
  7009 CONTINUE
       WRITE(6,*) ' MIXING PLANE MARKER, IFMIX = ', IFMIX
       WRITE(6,*)
@@ -478,8 +502,8 @@ C
       FSMTHB   = 1.0
       FEXTRAP  = 0.80
       FANGLE   = 0.80
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,END=7010,ERR=7010)  RFMIX,FEXTRAP,FSMTHB,
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,END=7010,ERR=7010)  RFMIX,FEXTRAP,FSMTHB,
      &                             FANGLE
  7010 CONTINUE
       WRITE(6,*)' THE MIXING PLANE PARAMETERS ARE '
@@ -494,8 +518,8 @@ C
       IFCOOL   = 0
       IFBLEED  = 0
       IF_ROUGH = 0
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR = 7011) IFCOOL,IFBLEED,IF_ROUGH
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR = 7011) IFCOOL,IFBLEED,IF_ROUGH
  7011 CONTINUE
       WRITE(6,*) ' IFCOOL,IFBLEED,IF_ROUGH ', IFCOOL,IFBLEED,IF_ROUGH
       WRITE(6,*)
@@ -503,9 +527,9 @@ C
 C******************************************************************************
 C   READ IN THE NUMBER OF BLADE SECTIONS ON WHICH THE GEOMETRY IS TO BE GENERATED.
 C 
-      READ(5,*)   DUMMY_INPUT 
+      READ(15,*)   DUMMY_INPUT 
       WRITE(6,*)  DUMMY_INPUT 
-      READ(5,*)   NSECS_IN
+      READ(15,*)   NSECS_IN
       WRITE(6,*)
      &'NUMBER OF SECTIONS USED FOR BLADE GEOMETRY GENERATION= ',NSECS_IN
       WRITE(6,*)
@@ -519,8 +543,8 @@ C
       IN_FLOW     = 0
       IF_REPEAT  = 0
       RFIN       = 0.1
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=7012) IN_PRESS,IN_VTAN,IN_VR,IN_FLOW,IF_REPEAT,RFIN
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=7012) IN_PRESS,IN_VTAN,IN_VR,IN_FLOW,IF_REPEAT,RFIN
  7012 CONTINUE
       WRITE(6,*) ' IN_PRESS,IN_VTAN,IN_VR,IN_FLOW,IF_REPEAT ',
      &             IN_PRESS,IN_VTAN,IN_VR,IN_FLOW,IF_REPEAT
@@ -533,8 +557,8 @@ C      READ IN THE EXIT BOUNDARY CONDITION OPTIONS
       IPOUT          = 1
       SFEXIT         = 0.0
       NSFEXIT        = 0
-      READ(5,*)          DUMMY_INPUT
-      READ(5,*,ERR=8012) IPOUT,SFEXIT,NSFEXIT
+      READ(15,*)          DUMMY_INPUT
+      READ(15,*,ERR=8012) IPOUT,SFEXIT,NSFEXIT
  8012 CONTINUE
       WRITE(6,*) ' IPOUT, SFEXIT ', IPOUT, SFEXIT, NSFEXIT
       WRITE(6,*) ' SFEXIT= ',SFEXIT, ' NSFEXIT= ', NSFEXIT
@@ -543,8 +567,8 @@ C******************************************************************************
 C
       PLATE_LOSS    = 0.0
       THROTTLE_EXIT = 0.0
-      READ(5,*)   DUMMY_INPUT
-      READ(5,*,ERR=8013)   PLATE_LOSS, THROTTLE_EXIT
+      READ(15,*)   DUMMY_INPUT
+      READ(15,*,ERR=8013)   PLATE_LOSS, THROTTLE_EXIT
  8013 CONTINUE
       WRITE(6,*)' LOSS COEFFICIENT OF A PERFORATED PLATE AT EXIT = ',
      &            PLATE_LOSS
@@ -552,7 +576,7 @@ C
      &            THROTTLE_EXIT 
 C
       IF(THROTTLE_EXIT.GT.0.001) THEN
-            READ(5,*)  THROTTLE_PRES,THROTTLE_MAS,RFTHROTL
+            READ(15,*)  THROTTLE_PRES,THROTTLE_MAS,RFTHROTL
             WRITE(6,*)'A THROTTLE EXIT BOUNDARY CONDITION HAS BEEN SET.'
             WRITE(6,*)'THROTTLE_PRES, THROTTLE_MAS, RFTHROTL=',
      &                 THROTTLE_PRES,THROTTLE_MAS,RFTHROTL 
@@ -565,8 +589,8 @@ C     READ IN IN THE SPECIFIED INLET FLOW AND RELAXATION FACTOR IF IN_FLOW
 C     IS NOT = ZERO
 C
       IF(IN_FLOW.NE.0) THEN
-           READ(5,*)    DUMMY_INPUT
-           READ(5,*)    FLOWIN, RFLOW
+           READ(15,*)    DUMMY_INPUT
+           READ(15,*)    FLOWIN, RFLOW
            WRITE(6,*) ' INLET FLOW FORCING, FLOWIN, RFLOW ',FLOWIN,RFLOW
            WRITE(6,*)
       END IF
@@ -577,8 +601,8 @@ C
       IF(IF_REPEAT.NE.0) THEN
            NINMOD = 10
            RFINBC = 0.025
-           READ(5,*) DUMMY_INPUT
-           READ(5,*,ERR=7013)  NINMOD, RFINBC
+           READ(15,*) DUMMY_INPUT
+           READ(15,*,ERR=7013)  NINMOD, RFINBC
  7013      CONTINUE
            WRITE(6,*) ' REPEATING STAGE SPECIFIED, NINMOD = ', NINMOD,
      &                ' RFINBC = ', RFINBC
@@ -591,8 +615,8 @@ C
       ILOS   = 100
       NLOS   = 5
       IBOUND = 0
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=7014) ILOS, NLOS, IBOUND
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=7014) ILOS, NLOS, IBOUND
  7014 CONTINUE
       IF(KM.EQ.2) IBOUND = 2
       WRITE(6,*) ' VISCOUS MODEL SET BY ILOS= ',ILOS,' NLOS= ',NLOS,
@@ -610,8 +634,8 @@ C    READ IN THE PARAMETERS FOR THE VISCOUS MODEL.
       TURBVIS_LIM = 3000.0
 C
       IF(ILOS.NE.0) THEN
-      READ(5,*)          DUMMY_INPUT
-      READ(5,*,ERR=7015) REYNO,RF_VIS,FTRANS,TURBVIS_LIM,
+      READ(15,*)          DUMMY_INPUT
+      READ(15,*,ERR=7015) REYNO,RF_VIS,FTRANS,TURBVIS_LIM,
      &                   PRANDTL,YPLUSWALL
  7015 CONTINUE
 C
@@ -637,8 +661,8 @@ C
            FAC_SFVIS = 2.0
            FAC_VORT  = 0.0
            FAC_PGRAD = 0.0
-           READ(5,*) DUMMY_INPUT
-           READ(5,*,ERR= 7016) FAC_STMIX, FAC_ST0, FAC_ST1,
+           READ(15,*) DUMMY_INPUT
+           READ(15,*,ERR= 7016) FAC_STMIX, FAC_ST0, FAC_ST1,
      &                         FAC_ST2  , FAC_ST3, FAC_SFVIS,
      &                         FAC_VORT, FAC_PGRAD
  7016 CONTINUE
@@ -659,8 +683,8 @@ C
       IF(ILOS.NE.0) THEN
            YPLAM    = 5.0
            YPTURB   = 25.0
-           READ(5,*) DUMMY_INPUT
-           READ(5,*, ERR= 590) YPLAM,YPTURB
+           READ(15,*) DUMMY_INPUT
+           READ(15,*, ERR= 590) YPLAM,YPTURB
   590 CONTINUE
            WRITE(6,*)' THE TURBULENT VISCOSITY IS REDUCED OVER THE RANGE 
      &  YPLUS = ',YPLAM,' TO ',YPTURB 
@@ -673,8 +697,8 @@ C
       Q3DFORCE = 1.0
       SFPBLD   = 0.1
       NSFPBLD  = 2
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=591) Q3DFORCE, SFPBLD, NSFPBLD
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=591) Q3DFORCE, SFPBLD, NSFPBLD
   591 CONTINUE
       SFPBLD1 = 1.0 - SFPBLD
       WRITE(6,*)
@@ -689,8 +713,8 @@ C
       ISHIFT      = 2
       NEXTRAP_LE  = 10
       NEXTRAP_TE  = 10
-      READ(5,*)          DUMMY_INPUT
-      READ(5,*,ERR=7008) ISHIFT,NEXTRAP_LE,NEXTRAP_TE
+      READ(15,*)          DUMMY_INPUT
+      READ(15,*,ERR=7008) ISHIFT,NEXTRAP_LE,NEXTRAP_TE
  7008 CONTINUE
       WRITE(6,*) ' ISHIFT ,NEXTRAP_LE, NEXTRAP_TE = ',
      &             ISHIFT, NEXTRAP_LE, NEXTRAP_TE
@@ -707,8 +731,8 @@ C     FIRST SET DEFAULTS.
 C
 C     NOW READ IN THE ACTUAL STAGE NUMBER FOR EACH BLADE ROW.
 C
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=588)(NSTAGE(N),N=1,NROWS)
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=588)(NSTAGE(N),N=1,NROWS)
   588 CONTINUE
 C
 C**************************************************************************
@@ -719,8 +743,8 @@ C
       DO N=1,5
            NOUT(N) = NSTEPS_MAX+10 
       END DO
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=7006) (NOUT(N),N=1,5)
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=7006) (NOUT(N),N=1,5)
  7006 CONTINUE
       WRITE(6,*) ' OUTPUT REQUESTED AT TIME STEPS = ', (NOUT(N),N=1,5)
       WRITE(6,*)
@@ -729,8 +753,8 @@ C     INPUT A LIST OF VARIABLES TO BE SENT TO THE OUTPUT FILE ' RESULTS.OUT'.
       DO I=1,20
            IOUT(I) = 0
       END DO
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*,ERR=7027) (IOUT(I),I=1,13)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*,ERR=7027) (IOUT(I),I=1,13)
  7027 CONTINUE
       WRITE(6,*)'THE VARIABLES TO BE OUTPUT TO THE FILE RESULTS.OUT ARE'
       WRITE(6,1610) (IOUT(I),I=1,13)
@@ -739,8 +763,8 @@ C     CHOOSE WHICH K VALUES (STREAM SURFACES) ARE TO BE OUTPUT TO THE FILE 'RESU
       DO K=1,KM
            KOUT(K) = 0
       END DO
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*,ERR=2028) (KOUT(K),K=1,KM)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*,ERR=2028) (KOUT(K),K=1,KM)
  2028 CONTINUE
       WRITE(6,*)  'THE STREAM SURFACES ON WHICH RESULTS ARE SENT TO THE
      &OUTPUT FILE ARE:'
@@ -792,14 +816,14 @@ C
       DO 1550 NR = 1,NROWS
 C
 C    READ IN TWO BLANK LINES TO HELP SPACE OUT THE DATA.
-      READ(5,*) DUMMY_INPUT
-      READ(5,*) DUMMY_INPUT
+      READ(15,*) DUMMY_INPUT
+      READ(15,*) DUMMY_INPUT
       WRITE(6,*)'******************************************************'
       WRITE(6,*)'******************************************************'
 C
 C******************************************************************************
 C     READ IN THE ROW TITLE. THIS IS NEVER USED BUT HELPS TO LAY OUT THE DATA
-      READ(5,1200) ROWTYP
+      READ(15,1200) ROWTYP
 C
       WRITE(6,*) ' INPUTTING DATA FOR BLADE ROW NUMBER ',NR
       WRITE(6,*) ' BLADE ROW TITLE = ', ROWTYP
@@ -808,8 +832,8 @@ C
 C
 C******************************************************************************
 C     READ IN THE NUMBER OF BLADES IN THIS ROW  
-      READ(5,*)    DUMMY_INPUT    
-      READ(5,*)    NBLADES_IN_ROW
+      READ(15,*)    DUMMY_INPUT    
+      READ(15,*)    NBLADES_IN_ROW
       WRITE(6,*)
       WRITE(6,*) ' NUMBER OF BLADES IN ROW No.',NR,' =',NBLADES_IN_ROW
       WRITE(6,*)
@@ -818,8 +842,8 @@ C******************************************************************************
 C    JMROW = NUMBER OF J GRID POINTS ON THIS ROW.
 C    JLEROW AND JTEROW ARE MEASURED FROM THE START OF THIS ROW. 
 C    THEY ARE NOT THE FINAL OVERALL VALUES.
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    JMROW,JLEROW,JTEROW
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    JMROW,JLEROW,JTEROW
       WRITE(6,*) ' JM = ',JMROW,'JLE =',JLEROW,'JTE = ',JTEROW
       WRITE(6,*)
 C     SET THE OVERALL J VALUES OF THE LEADING AND TRAILING EDGE POINTS ON THIS ROW.   
@@ -835,8 +859,8 @@ C
 C      SET KTIPS(NR) NEGATIVE TO USE THE SHROUD LEAKAGE MODEL ON THIS
 C      ROW. EXTRA INPUT DATA IS THEN NEEDED AT THE END OF THE DATA FILE.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    KTIPS(NR),KTIPE(NR)
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    KTIPS(NR),KTIPE(NR)
       WRITE(6,*) ' K TIP START= ',KTIPS(NR),' K TIP END= ',KTIPE(NR)
       WRITE(6,*)
 C     FOR Q3D
@@ -856,8 +880,8 @@ C*******************************************************************************
 C      INPUT THE TIP CLEARANCE AS A FRACTION OF THE BLADE SPAN AT THE LEADING EDGE
 C      AND TRAILING EDGE.
        IF(KTIPS(NR).GT.0) THEN
-            READ(5,*)   DUMMY_INPUT
-            READ(5,*)   FRACTIP1(NR),FRACTIP2(NR)
+            READ(15,*)   DUMMY_INPUT
+            READ(15,*)   FRACTIP1(NR),FRACTIP2(NR)
             WRITE(6,*)' FRACTIP1, FRACTIP2 = ',FRACTIP1(NR),FRACTIP2(NR)
             WRITE(6,*)
       END IF
@@ -873,8 +897,8 @@ C      FTHICK  IS ASSUMED TO BE 1.0 UNLESS INPUT HERE.
 C      SET FTHICK = 0.0 FOR POINTS IN THE TIP GAP, INCLUDING THE POINT AT THE BLADE TIP.
       IF(KTIPS(NR).GT.0.AND.KTIPE(NR).GT.0) THEN
            WRITE(6,*)   ' BLADE TIP THINNING FACTORS '
-           READ(5,*)      DUMMY_INPUT
-           READ(5,*)     (FTHICK(NR,K),K=1,KM)
+           READ(15,*)      DUMMY_INPUT
+           READ(15,*)     (FTHICK(NR,K),K=1,KM)
            WRITE(6,1700) (FTHICK(NR,K),K=1,KM)
            WRITE(6,*) 
       END IF    
@@ -884,8 +908,8 @@ C   BOUNDARY LAYER TRANSITION IS SPECIFIED SEPARATELY ON EACH SURFACE.
 C   BUT IS ALSO DETERMINED BY FTRANS WHICH HAS ALREADY BEEN INPUT . 
 C   JTRAN_I1, etc,  ARE MEASRED FROM THE START OF THIS ROW.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    JTRAN_I1(NR),JTRAN_IM(NR),JTRAN_K1(NR),JTRAN_KM(NR)
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    JTRAN_I1(NR),JTRAN_IM(NR),JTRAN_K1(NR),JTRAN_KM(NR)
       WRITE(6,*) ' BOUNDARY LAYER TRANSITION IS SPECIFIED AS FOLLOWS '
       WRITE(6,*) ' TRANSITION ON I= 1 SURFACE FIXED AT J= ',JTRAN_I1(NR)
       WRITE(6,*) ' TRANSITION ON I=IM SURFACE FIXED AT J= ',JTRAN_IM(NR)
@@ -897,8 +921,8 @@ C******************************************************************************
 C     SET NEW_GRID = 1  TO GENERATE A NEW GRID IN THE "J" (STREAMWISE) DIRECTION
 C     DATA FOR THIS IS READ IN LATER. SET NEW_GRID = 0 TO USE THE GRID INPUT HERE.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    NEW_GRID
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    NEW_GRID
       WRITE(6,*) ' NEWGRID = ', NEW_GRID
       IF(NEW_GRID.NE.0) WRITE(6,*)
      & ' A NEW GRID WILL BE GENERATED USING DATA TO BE INPUT LATER. '
@@ -908,8 +932,8 @@ C
 C******************************************************************************
 C     READ IN THE RPM AND HUB ROTATION OF THIS ROW. 
 C     THE CASING ROTATION IS TAKEN TO BE RPMROW BETWEEN JROTTS AND JROTTE AND ZERO ELSEWHERE.
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    RPMROW, RPMHUB  
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    RPMROW, RPMHUB  
       WRITE(6,*) ' BLADE ROW RPM = ',RPMROW,' HUB RPM = ',RPMHUB
       WRITE(6,*)
 C
@@ -919,8 +943,8 @@ C     THE CASING IS TAKEN TO BE ROTATING AT RPMROW BETWEEN JROTTS AND JROTTE.
 C     OUTSIDE THESE LIMITS THE HUB AND CASING ARE NOT ROTATING.
 C     JROTHS, JROTHE, etc  ARE MEASURED FROM THE J VALUE AT START OF THIS BLADE ROW
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    JROTHS,JROTHE,JROTTS,JROTTE
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    JROTHS,JROTHE,JROTTS,JROTTE
 C
 C   SET ALL ROTATION POINTS TO JMROW IF THEY ARE OUTSIDE THE LIMITS FOR THIS ROW.
       IF(JROTHS.EQ.0.OR.JROTHS.GT.JMROW) JROTHS = JMROW
@@ -937,18 +961,18 @@ C
 C****************************************************************************** 
 C     INPUT AN INITIAL GUESS OF THE UPSTREAM, LEADING EDGE, TRAILING EDGE AND 
 C     DOWNSTREAM STATIC PRESSURES FOR THIS ROW. 
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    PUPROW,PLEROW,PTEROW,PDNROW
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    PUPROW,PLEROW,PTEROW,PDNROW
       WRITE(6,*) ' INITIAL GUESS OF PRESSURES = ',
      &             PUPROW,PLEROW,PTEROW,PDNROW 
       WRITE(6,*)
 C
 C******************************************************************************
 C     INPUT THE NUMBER OF INPUT SECTIONS FOR THIS BLADE ROW.
-      READ(5,*)   DUMMY_INPUT
+      READ(15,*)   DUMMY_INPUT
       NSECS_ROW  = NSECS_IN
       INSURF     = 0
-      READ(5,*,ERR=7019) NSECS_ROW,INSURF
+      READ(15,*,ERR=7019) NSECS_ROW,INSURF
  7019 CONTINUE
       WRITE(6,*)'NUMBER OF INPUT SECTIONS FOR THIS BLADE ROW=',NSECS_ROW
       WRITE(6,*)'     NEW ENDWALL GENERATION OPTION, INSURF =', INSURF
@@ -968,8 +992,8 @@ C     trailing edge.
 C
       IF_CUSP(NR)    = 0
       IF_ANGLES(NR)  = 0
-      READ(5,*)  DUMMY_INPUT
-      READ(5,*,ERR=7020) IF_CUSP(NR), IF_ANGLES(NR)
+      READ(15,*)  DUMMY_INPUT
+      READ(15,*,ERR=7020) IF_CUSP(NR), IF_ANGLES(NR)
  7020 CONTINUE
       WRITE(6,*)'           CUSP GENERATION OPTION, IF_CUSP =',
      &           IF_CUSP(NR)
@@ -978,7 +1002,7 @@ C
       WRITE(6,*)
 C
       IF(IF_CUSP(NR).EQ.1) THEN
-	   READ(5,*)    ICUSP(NR),LCUSP(NR),LCUSPUP(NR)
+	   READ(15,*)    ICUSP(NR),LCUSP(NR),LCUSPUP(NR)
            WRITE(6,*) ' ICUSP, LCUSP , LCUSPUP = ',
      &                  ICUSP(NR),LCUSP(NR),LCUSPUP(NR)
            WRITE(6,*)
@@ -994,7 +1018,7 @@ C
            ICUSP(NR)   = 0
            LCUSP(NR)   = 0
            LCUSPUP(NR) = 0
-           READ(5,*)  NUP_I1(NR),NUP_IM(NR),N_WAKE(NR),
+           READ(15,*)  NUP_I1(NR),NUP_IM(NR),N_WAKE(NR),
      &                  SEP_THIK(NR),SEP_DRAG(NR)
            WRITE(6,*)' BODY FORCE USED TO FORCE TRAILING EDGE SEPARTION'
            WRITE(6,*)' CUSP BODY FORCE POINTS, NUP_I1, NUP_IM, N_WAKE, 
@@ -1038,9 +1062,9 @@ C
       IF_DESIGN  = 0
       IF_STAGGER = 0
       IF_LEAN    = 0
-      READ(5,*)  DUMMY_INPUT
-      READ(5,*)  DUMMY_INPUT 
-      READ(5,*,  ERR=1601) IF_DESIGN,IF_STAGGER,IF_LEAN
+      READ(15,*)  DUMMY_INPUT
+      READ(15,*)  DUMMY_INPUT 
+      READ(15,*,  ERR=1601) IF_DESIGN,IF_STAGGER,IF_LEAN
  1601 CONTINUE 
 C
       WRITE(6,*) ' IF_DESIGN = ', IF_DESIGN
@@ -1078,10 +1102,10 @@ C***********XSURF(J,K) IS AXIAL COORDINATE OF POINTS ON THE STREAMWISE SURFACE.
 C
       WRITE(6,*)  ' ROW NUMBER ',NR,' SECTION NUMBER ',K,
      &            ' X  COORDINATES '      
-      READ(5,*)     FAC1, XSHIFT
+      READ(15,*)     FAC1, XSHIFT
       WRITE(6,*)  ' FAC1, XSHIFT = ', FAC1,XSHIFT
       WRITE(6,*)
-      READ(5,*)     (XSURF(J,K),J=J1,J2)
+      READ(15,*)     (XSURF(J,K),J=J1,J2)
       WRITE(6,1700) (XSURF(J,K),J=J1,J2)
       WRITE(6,*)
       XRANGE = XSURF(J2,K) - XSURF(J1,K)      
@@ -1093,10 +1117,10 @@ C           BLADE TO BLADE PASSAGE.
 C
       WRITE(6,*)  ' ROW NUMBER ',NR,' SECTION NUMBER ', K,
      &            ' R_THETA OF UPPER BLADE SURFACE'
-      READ(5,*)     FAC2, TSHIFT
+      READ(15,*)     FAC2, TSHIFT
       WRITE(6,*)  ' FAC2, TSHIFT = ', FAC2,TSHIFT
       WRITE(6,*) 
-      READ(5,*)     (RT_UPP(J,K),J=J1,J2)
+      READ(15,*)     (RT_UPP(J,K),J=J1,J2)
       WRITE(6,1700) (RT_UPP(J,K),J=J1,J2)
       WRITE(6,*)
 C
@@ -1105,10 +1129,10 @@ C          IN THE TANGENTIAL DIRECTION.
 C 
       WRITE(6,*)  ' ROW NUMBER ',NR,' SECTION NUMBER ',K,
      &            ' BLADE TANGENTIAL THICKNESS. '
-      READ(5,*)     FAC3
+      READ(15,*)     FAC3
       WRITE(6,*)  ' FAC3= ', FAC3
       WRITE(6,*)
-      READ(5,*)     (RT_THICK(J,K),J=J1,J2)
+      READ(15,*)     (RT_THICK(J,K),J=J1,J2)
       WRITE(6,1700) (RT_THICK(J,K),J=J1,J2)
       WRITE(6,*)
 C
@@ -1116,10 +1140,10 @@ C      RSURF(J,K) IS THE RADII OF POINTS ON THE STREAMWISE SURFACES ON WHICH DAT
 C
       WRITE(6,*)   ' ROW NUMBER ',NR,' SECTION NUMBER ',K,
      &             ' STREAM SURFACE RADIUS. '
-      READ(5,*)      FAC4, RSHIFT
+      READ(15,*)      FAC4, RSHIFT
       WRITE(6,*)   ' FAC4, RSHIFT  = ', FAC4,RSHIFT
       WRITE(6,*)
-      READ(5,*)     (RSURF(J,K),J=J1,J2)
+      READ(15,*)     (RSURF(J,K),J=J1,J2)
       WRITE(6,1700) (RSURF(J,K),J=J1,J2)
       WRITE(6,*)
 C    END OF ALL GEOMETRICAL INPUT FOR THIS BLADE SECTION
@@ -1228,10 +1252,10 @@ C*******************************************************************************
 C*******************************************************************************
 C
       IF(INSURF.EQ.1.OR.INSURF.GT.2) THEN
-           READ(5,*) NHUB
-           READ(5,*) (XHUB(N),N=1,NHUB)
+           READ(15,*) NHUB
+           READ(15,*) (XHUB(N),N=1,NHUB)
            WRITE(6,*) ' XHUB = ', (XHUB(N),N=1,NHUB)
-           READ(5,*) (RHUB(N),N=1,NHUB)
+           READ(15,*) (RHUB(N),N=1,NHUB)
            WRITE(6,*) ' RHUB = ', (RHUB(N),N=1,NHUB)
            DO N = 1,NHUB
                XHUB(N) = (XSHIFT + XHUB(N) ) * FAC1
@@ -1240,10 +1264,10 @@ C
       END IF
 C
       IF(INSURF.GE.2) THEN
-           READ(5,*) NTIP
-           READ(5,*) (XTIP(N),N=1,NTIP)
+           READ(15,*) NTIP
+           READ(15,*) (XTIP(N),N=1,NTIP)
            WRITE(6,*) ' XTIP =', (XTIP(N),N=1,NTIP)
-           READ(5,*) (RTIP(N),N=1,NTIP)
+           READ(15,*) (RTIP(N),N=1,NTIP)
            WRITE(6,*) ' RTIP =', (RTIP(N),N=1,NTIP)
            DO N = 1,NTIP
                XTIP(N) = (XSHIFT + XTIP(N) ) * FAC1
@@ -1343,12 +1367,12 @@ C
 C
       WRITE(6,*)  ' INPUTTING THE UPSTREAM AND DOWNSTREAM GRID ANGLES'
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    N_ANGLES
-      READ(5,*)   (FRACN_SPAN(NK),NK=1,N_ANGLES)
-      READ(5,*)   (ANGL_UP(NK),   NK=1,N_ANGLES)
-      READ(5,*)   (ANGL_DWN1(NK), NK=1,N_ANGLES)
-      READ(5,*)   (ANGL_DWN2(NK), NK=1,N_ANGLES)
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    N_ANGLES
+      READ(15,*)   (FRACN_SPAN(NK),NK=1,N_ANGLES)
+      READ(15,*)   (ANGL_UP(NK),   NK=1,N_ANGLES)
+      READ(15,*)   (ANGL_DWN1(NK), NK=1,N_ANGLES)
+      READ(15,*)   (ANGL_DWN2(NK), NK=1,N_ANGLES)
 C
       QSPAN(1) = 0.0
       J_MID     = J1 + (JLEROW + JTEROW)/2
@@ -1382,11 +1406,11 @@ C******************************************************************************
 C  IF A THROUGHFLOW CALCULATION READ IN THE REQUIRED EXIT FLOW ANGLE OR DEVIATION 
 C  ANGLE FOR THIS BLADE ROW. ANGL_TYP = 'A' FOR EXIT ANGLE, = 'D' FOR DEVIATION ANGLE.
       IF(IM.EQ.2) THEN
-      READ(5,*)    DUMMY_INPUT
+      READ(15,*)    DUMMY_INPUT
       WRITE(6,*) ' INPUTTING THE THROUGHFLOW DATA '
-      READ(5,*)    ANGL_TYP(NR), NANGLES(NR)
-      READ(5,*)  ( FRAC_SPAN(NR,NK),NK=1,NANGLES(NR))
-      READ(5,*)  ( EXIT_ANGL(NR,NK),NK=1,NANGLES(NR))
+      READ(15,*)    ANGL_TYP(NR), NANGLES(NR)
+      READ(15,*)  ( FRAC_SPAN(NR,NK),NK=1,NANGLES(NR))
+      READ(15,*)  ( EXIT_ANGL(NR,NK),NK=1,NANGLES(NR))
       WRITE(6,*) ' NANGLES = ',NANGLES(NR),' ANGL_TYP = ',ANGL_TYP(NR)
       WRITE(6,9048) (FRAC_SPAN(NR,NK),NK=1,NANGLES(NR))
       IF(ANGL_TYP(NR).EQ.'A')
@@ -1853,9 +1877,9 @@ C******************************************************************************
 C******************************************************************************
 C   INPUT THE NUMBER OF DATA POINTS USED FOR THE INLET BOUNDARY CONDITIONS.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    KIN
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    KIN
       WRITE(6,*) ' NUMBER OF DATA POINTS USED FOR THE INLET BOUNDARY'
       WRITE(6,*) ' CONDITIONS = ', KIN
       WRITE(6,*)
@@ -1874,58 +1898,58 @@ C*******************************************************************************
 C   INPUT THE RELATIVE SPANWISE SPACING OF THE POINTS WHERE THE INLET BOUNDARY
 C   CONDITIONS ARE GIVEN'
 C
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*)     (FR_IN(K),K=1,KIN-1)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*)     (FR_IN(K),K=1,KIN-1)
       WRITE(6,*)  ' RELATIVE SPACING OF THE POINTS WHERE THE INLET BOUND
      &ARY CONDITIONS ARE GIVEN'
       WRITE(6,1700) (FR_IN(K),K=1,KIN-1)
       WRITE(6,*)
 C
 C    INPUT THE INLET ABSOLUTE STAGNATION PRESSURE VARIATION WITH SPAN
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*)     (PO1(K),K=1,KIN)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*)     (PO1(K),K=1,KIN)
       WRITE(6,*)  ' INLET STAGNATION PRESSURE VARIATION WITH SPAN.'
       WRITE(6,1800) (PO1(K),K=1,KIN)
       PO_IN_MID = PO1(KIN_MID)
 C
 C    INPUT THE EXIT STATIC PRESSURE VARIATION WITH SPAN. ONLY IF  "IPOUT" = 3 .
       IF(IPOUT.EQ.3) THEN
-           READ(5,*)     DUMMY_INPUT
-           READ(5,*)    (PD(K),K=1,KIN)
+           READ(15,*)     DUMMY_INPUT
+           READ(15,*)    (PD(K),K=1,KIN)
            WRITE(6,*)  ' EXIT STATIC PRESSURE VARIATION WITH SPAN.'
            WRITE(6,1800)(PD(K),K=1,KIN)
       END IF
 C
 C     INPUT THE INLET ABSOLUTE STAGNATION TEMPERATURE VARIATION WITH SPAN.
-      READ(5,*)       DUMMY_INPUT
-      READ(5,*)      (TO1(K),K=1,KIN)
+      READ(15,*)       DUMMY_INPUT
+      READ(15,*)      (TO1(K),K=1,KIN)
       WRITE(6,*)    ' INLET STAGNATION TEMPERATURE VARIATION WITH SPAN.'
       WRITE(6,1730)  (TO1(K),K=1,KIN)
       TO_IN_MID = TO1(KIN_MID)
 C
 C   INPUT THE INLET TANGENTIAL VELOCITY VARIATION WITH SPAN.
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*)     (VTIN(K),K=1,KIN)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*)     (VTIN(K),K=1,KIN)
       WRITE(6,*)   ' INLET TANGENTIAL VELOCITY VARIATION WITH SPAN.'
       WRITE(6,1730) (VTIN(K),K=1,KIN)
       VT_IN_MID  = VTIN(KIN_MID)
 C
 C    INPUT THE INLET MERIDIONAL VELOCITY VARIATION WITH SPAN.
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*)     (VM1(K),K=1,KIN)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*)     (VM1(K),K=1,KIN)
       WRITE(6,*)   ' INLET MERIDIONAL VELOCITY VARIATION WITH SPAN.'
       WRITE(6,1730) (VM1(K),K=1,KIN)
 C
 C    INPUT THE INLET YAW ANGLE VARIATION WITH SPAN.
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*)     (BS(K),K=1,KIN)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*)     (BS(K),K=1,KIN)
       WRITE(6,*)  ' INLET YAW ANGLE VARIATION WITH SPAN.'
       WRITE(6,1730) (BS(K),K=1,KIN)
       YAW_IN_MID = BS(KIN_MID)
 C
 C    INPUT THE INLET MERIDIONAL PITCH ANGLE VARIATION WITH SPAN.
-      READ(5,*)      DUMMY_INPUT
-      READ(5,*)     (BR(K),K=1,KIN)
+      READ(15,*)      DUMMY_INPUT
+      READ(15,*)     (BR(K),K=1,KIN)
       WRITE(6,*)   ' INLET MERIDIONAL PITCH ANGLE VARIATION WITH SPAN.'
       WRITE(6,1730) (BR(K),K=1,KIN)
       PITCH_IN_MID  = BR(KIN_MID)
@@ -1936,8 +1960,8 @@ C******************************************************************************
 C     INPUT THE EXIT STATIC PRESSURES ON THE HUB AND CASING.
 C     THIS IS THE MAIN EXIT BOUNDARY CONDITION.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    PDOWN_HUB,PDOWN_TIP
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    PDOWN_HUB,PDOWN_TIP
       WRITE(6,*) ' SPECIFIED DOWNSTREAM PRESSURES ON HUB AND CASING=' ,
      &             PDOWN_HUB,PDOWN_TIP
       WRITE(6,*)
@@ -2057,19 +2081,19 @@ C      READ IN THE MIXING LENGTH LIMITS IF ILOS IS NOT ZERO.
 C
       IF(ILOS.NE.0) THEN
 C
-      READ(5,*) DUMMY_INPUT
+      READ(15,*) DUMMY_INPUT
 C
       DO 570 N = 1,NROWS
 
       IF(ILOS.EQ.10) THEN
 C
-           READ(5,*,ERR=580)  XLLIM_I1(N),XLLIM_IM(N),
+           READ(15,*,ERR=580)  XLLIM_I1(N),XLLIM_IM(N),
      &                 XLLIM_K1(N),XLLIM_KM(N),XLLIM_DWN(N),XLLIM_UP(N)
       END IF
 C
       IF(ILOS.GE.100) THEN
 C
-           READ(5,*,ERR=580)  XLLIM_IN(N),XLLIM_LE(N),
+           READ(15,*,ERR=580)  XLLIM_IN(N),XLLIM_LE(N),
      &                XLLIM_TE(N),XLLIM_DN(N),FSTURB(N),TURBVIS_DAMP(N)
       END IF
 C           
@@ -2092,8 +2116,8 @@ C     READ IN A FACTOR TO INCREASE THE TURBULENT VISCOSITY FOR THE FIRST NMIXUP 
 C
            FACMIXUP = 2.0
            NMIXUP   = 1000
-           READ(5,*) DUMMY_INPUT
-           READ(5,*, ERR= 585)     FACMIXUP, NMIXUP
+           READ(15,*) DUMMY_INPUT
+           READ(15,*, ERR= 585)     FACMIXUP, NMIXUP
            IF(FACMIXUP.LT.1.0)     FACMIXUP = 1.0
            IF(IF_RESTART.NE.0)     FACMIXUP = 1.0
   585 CONTINUE
@@ -2119,9 +2143,9 @@ C
 	WRITE(6,*) ' Non-hydraulic smooth surfaces specified'
 	WRITE(6,*) ' Input Surface Roughness in microns for all 4'
 	WRITE(6,*) ' surfaces of each row in turn.'
-           READ(5,*) DUMMY_INPUT
+           READ(15,*) DUMMY_INPUT
       DO 586 N = 1,NROWS
-           READ(5,*)  ROUGH_H(N),ROUGH_T(N),ROUGH_L(N),ROUGH_U(N)
+           READ(15,*)  ROUGH_H(N),ROUGH_T(N),ROUGH_L(N),ROUGH_U(N)
 C
            WRITE(6,*) ' ROW NUMBER ', N
            WRITE(6,*) ' Surface Roughnesses in microns ',
@@ -2158,1510 +2182,11 @@ C
       END
 C
 C*************************************************************************
-C
-      SUBROUTINE OLD_READIN
-C
-C       THIS SUBROUTINE READS IN THE DATA IN
-C       ====================
-
-C
-      INCLUDE 'commall-open-18.2'
-C
-      COMMON/BKODDS/
-     &           XINT(JD),YINT(JD),RINT(JD),SDIST(JD),
-     &           ICUSP(NRS),LCUSP(NRS),LCUSPUP(NRS),
-     &           FRACNEW(JD),BETANEW(JD),SLOPE(JD),
-     &           THICKUP(JD),THICKLOW(JD),
-     &           XINT1(KD),XINT2(KD),XINT3(KD),XINT4(KD)
-C
-C       START OF INPUT SECTION
-C       THROUGHOUT THE INPUT SECTION THE VARIABLES ARE AS FOLLOWS
-C       =====================
-C
-C       RT_UPP(J,K)  IS TEMPORARY STORE FOR BLADE SUCTION SURFACE CO-ORD'S
-C       RT_THICK(J,K) IS THE BLADE TANGENTIAL THICKNESS
-C       RCYL(K)    IS RADIUS OF K'TH CYLINDRICAL SURFACE IF INPUT IS ON
-C                  CYLINDRICAL SURFACES.
-C       R(J,1)     IS RADII OF HUB
-C       R(J,KM)    IS RADII OF CASING
-C
-C       =====================
- 1000 FORMAT(16I5)
- 1100 FORMAT(8F10.6)
- 1200 FORMAT(A72)
- 1600 FORMAT(16I5)
- 1700 FORMAT(8F10.6)
- 1701 FORMAT(8F12.6)
- 1720 FORMAT(8F10.1)
- 1730 FORMAT(F10.3,4F10.1,2F10.3)
- 1800 FORMAT(18A4)
-C
-      PI     = 3.14159265
-      DEGRAD = PI/180.
-      RADDEG = 180./PI
-C
-      READ(5,1200)  TITLE
-      WRITE(6,1800) TITLE
-C
-C************FIRST READ IN MAIN INTEGER CONTROL VARIABLES ************
-C
-      READ(5,1000) IM,JDUM,KM,IF_ROUGH,NSTEPS_MAX,IFCOOL,IFBLEED,NOSECT,
-     &             NROWS,IFMIX,ISHIFT,KIN,NEXTRAP_LE,NEXTRAP_TE,NCHANGE
-      WRITE(6,1600)IM,JDUM,KM,IF_ROUGH,NSTEPS_MAX,IFCOOL,IFBLEED,NOSECT,
-     &             NROWS,IFMIX,ISHIFT,KIN,NEXTRAP_LE,NEXTRAP_TE,NCHANGE
-C
-      READ(5,1000) IN_VTAN,INSURF,IN_VR,ITIMST,IDUMMY,IPOUT,IN_FLOW,
-     &             ILOS,NLOS,IF_RESTART,IDUMY,IBOUND,IF_REPEAT
-      WRITE(6,1600)IN_VTAN,INSURF,IN_VR,ITIMST,IDUMMY,IPOUT,IN_FLOW,
-     &             ILOS,NLOS,IF_RESTART,IDUMY,IBOUND,IF_REPEAT
-C
-      IN_PRESS = IN_VR
-      
-C
-C******************************************************************************
-C    SET THE COEFFICIENTS   F1, F2,  F3  FOR THE TIME STEPPING SCHEME
-C
-      WRITE(6,*)
-      WRITE(6,*) ' TIME STEP TYPE , ITIMST = ', ITIMST
-      WRITE(6,*)
-C
-C    SET THE COEFFICIENTS FOR THE SSS SCHEME
-C
-      IF(ITIMST.EQ.3.OR.ITIMST.EQ.5.OR.ITIMST.EQ.6) THEN
-              F1          =  2.0000
-              F2          = -1.000
-              F3          =  0.00
-              F2EFF       = -1.0
-              NRSMTH      =  0
-              RSMTH       =  0.40
-      END IF
-C
-      IF(ITIMST.EQ.-3.OR.ITIMST.EQ.-5.OR.ITIMST.EQ.-6) THEN
-              F1          =  2.0000
-              F2          = -1.65
-              F3          = -0.65
-              F2EFF       = -1.0
-              NRSMTH      =  1
-              RSMTH       =  0.40
-              ITIMST      =  ABS(ITIMST)
-      END IF
-C
-      IF(ITIMST.EQ.4.OR.ITIMST.EQ.-4) THEN
-              READ(5,*) F1, F2EFF, F3 , RSMTH, NRSMTH
-              WRITE(6,*) ' F1, F2EFF, F3 , RSMTH, NRSMTH ',
-     &                     F1, F2EFF, F3 , RSMTH, NRSMTH
-              WRITE(6,*)
-              IF(F2EFF.GT.0.0) THEN 
-              WRITE(6,*)
-              WRITE(6,*) ' ERROR,  F2EFF  MUST BE NEGATIVE.'
-              WRITE(6,*) ' THE SIGN OF THE INPUT VALUE WILL BE CHANGED.'
-              WRITE(6,*)
-              F2EFF = -F2EFF
-              END IF
-              IF(F3.GT.0.0) THEN 
-              WRITE(6,*)
-              WRITE(6,*) ' ERROR,  F3  MUST BE NEGATIVE.'
-              WRITE(6,*) ' THE SIGN OF THE INPUT VALUE WILL BE CHANGED.'
-              WRITE(6,*)
-              F3  = -F3
-              END IF
-              F2     = F2EFF*(1.0 - F3)
-              ITIMST = 3
-      END IF
-C
-              WRITE(6,*) ' F1, F2EFF, F3 , RSMTH, NRSMTH ',
-     &                     F1, F2EFF, F3 , RSMTH, NRSMTH
-              WRITE(6,*)
-C
-C**********************************************************************************
-C      
-C  Q3D
-      IF(KM.EQ.2) IBOUND = 2
-C  END Q3D
-C
-      READ (5,1000) IR,JR,KR,IRBB,JRBB,KRBB
-      WRITE(6,1600) IR,JR,KR,IRBB,JRBB,KRBB
-C
-C  Q3D
-      IF(KM.EQ.2) THEN
-           KR   = 1
-           KRBB = 1
-      END IF
-      IF(IM.EQ.2) THEN
-           IR   = 1
-           IRBB = 1
-      END IF
-C  END Q3D
-C
-      IF_KINT = 0
-      IF(KIN.LT.0)     IF_KINT = 1
-      KIN = ABS(KIN)      
-      IF(KIN.EQ.0)     KIN  = KM
-      IF(KIN.NE.KM)    IF_KINT = 1
-C
-      IF(NEXTRAP_LE.EQ.0)     NEXTRAP_LE  = 5
-      IF(NEXTRAP_TE.EQ.0)     NEXTRAP_TE  = 5
-      IF(NCHANGE.EQ.0) NCHANGE = NSTEPS_MAX/4
-      IF(IF_RESTART.NE.0) NCHANGE = 100
-      IF(NLOS.EQ.0)    NLOS = 5
-      IMM1 = IM-1
-      IMM2 = IM-2
-      IF(IM.EQ.2) IMM2 =1
-      KMM1 = KM-1
-      KMM2 = KM-2
-C
-C
-C     CHECK THAT THE DIMENSIONS ARE NOT TOO LARGE.
-C
-      IF(MAXKI.LT.KD)  WRITE(6,*)
-     &      ' STOPPING BECAUSE MAXKI IS LESS THAN KD',
-     &      ' MAXKI = ',MAXKI, ' KD = ',KD
-      IF(MAXKI.LT.ID)  WRITE(6,*)
-     &      ' STOPPING BECAUSE MAXKI IS LESS THAN ID',
-     &      ' MAXKI = ',MAXKI, ' ID = ',ID
-      IF(IM.GT.ID)  WRITE(6,*) ' STOPPING BECAUSE IM TOO LARGE.',
-     &            ' IM= ',IM,  ' DIMENSION LIMIT = ',ID
-      IF(KM.GT.KD)  WRITE(6,*) ' STOPPING BECAUSE KM TOO LARGE.',
-     &            ' KM= ',KM,  ' DIMENSION LIMIT = ',KD
-      IF(KIN.GT.MAXKI) WRITE(6,*) ' STOPPING BECAUSE KIN TOO LARGE.',
-     &            ' KIN= ',KIN,' DIMENSION LIMIT = ',MAXKI
-C
-      IF(IM.GT.ID.OR.KM.GT.KD)  STOP
-      IF(KIN.GT.MAXKI.OR.MAXKI.LT.KD.OR.MAXKI.LT.ID) STOP
-C
-      IF(NROWS.GT.NRS)  WRITE(6,*) 'STOPPING BECAUSE NROWS TOO LARGE.',
-     &            ' NROWS= ',NROWS,' DIMENSION LIMIT = ',NRS
-      IF(NROWS.GT.NRS) STOP
-C
-C     CHECK IF THERE ARE VARIABLE NUMBERS OF INPUT SECTIONS, i.e.  IF NOSECT IS NEGATIVE
-C
-      IF_SECTS = 0
-      IF(NOSECT.LT.0) THEN
-           IF_SECTS = 1
-           NOSECT   = ABS(NOSECT)
-      END IF
-C
-C
-C
-C***********INPUT THE BLADE GEOMETRY ON NOSECT STREAMWISE SURFACES******
-C*********** THE GEOMETRY IS INPUT FOR EACH BLADE ROW SEPARATELY******
-C
-C            FIRST INPUT THE CONTROL PARAMETERS FOR THE BLADE ROW
-C            AND SET THE VALUES OF SOME BLADE ROW VARIABLES
-C
-      J1        = 1
-      IFSHROUD  = 0
-C
-      DO 1550 NR = 1,NROWS
-C
-C      READ IN THE ROW TITLE. THIS IS NEVER USED BUT HELPS TO LAY OUT THE DATA
-C
-      READ(5,1200) ROWTYP
-C
-C
-C      KTIPS IS THE K VALUE OF THE POINT WHERE THE TIP GAP STARTS
-C      KTIPE IS THE K VALUE OF THE POINT WHERE THE TIP GAP ENDS.
-C      SET KTIPS(NR) = 0  FOR NO TIP GAP ON THIS ROW.    
-C
-C      SET KTIPS(NR) NEGATIVE TO USE THE SHROUD LEAKAGE MODEL ON THIS
-C      ROW. EXTRA INPUT DATA IS THEN NEEDED AT THE END OF THE DATA FILE.
-C
-      READ(5,1000) JMROW,JLEROW,JTEROW,NBLADES_IN_ROW,
-     &   KTIPS(NR),KTIPE(NR),JROTHS,JROTHE,JROTTS,JROTTE,
-     &   NEW_GRID,JTRAN_I1(NR),JTRAN_IM(NR),JTRAN_K1(NR),
-     &   JTRAN_KM(NR),IF_CUSP(NR)
-C
-C     FOR Q3D
-      IF(KM.EQ.2) THEN
-           KTIPS(NR) = 0
-           KTIPE(NR) = 0
-      END IF
-C     END Q3D
-C
-C     INPUT THE NUMBER OF INPUT SECTIONS IF THIS IS NOT CONSTANT.
-C
-      IF(IF_SECTS.EQ.1) THEN
-            READ(5,*) NSECS_ROW
-      ELSE
-            NSECS_ROW = NOSECT
-      END IF
-C    NSECS_IN  MUST BE SET AS IT IS USED IN INTPOL
-            NSECS_IN = NSECS_ROW
-C
-C     END VARIABLE INPUT SECTIONS
-C   
-      JLEE = J1+JLEROW-1
-      JTEE = J1+JTEROW-1
-C
-      IF(KTIPS(NR).LE.0) KTIPE(NR) = 0
-      IF(KTIPS(NR).LT.0) IFSHROUD  = 1
-C
-      IF(JROTHS.EQ.0.OR.JROTHS.GT.JMROW) JROTHS = JMROW
-      IF(JROTHE.EQ.0.OR.JROTHE.GT.JMROW) JROTHE = JMROW
-      IF(JROTTS.EQ.0.OR.JROTTS.GT.JMROW) JROTTS = JMROW
-      IF(JROTTE.EQ.0.OR.JROTTE.GT.JMROW) JROTTE = JMROW
-C
-C
-      WRITE(6,1600) JMROW,JLEROW,JTEROW,NBLADES_IN_ROW,
-     &   KTIPS(NR),KTIPE(NR),JROTHS,JROTHE,JROTTS,JROTTE,NEW_GRID,
-     &   JTRAN_I1(NR),JTRAN_IM(NR),JTRAN_K1(NR),JTRAN_KM(NR),IF_CUSP(NR)
-C
-C
-C     Set the cusp generation parameters if IF_CUSP is not 0.
-C     Maintain the original grid and no cusp is generated if IF_CUSP = 0
-C     The cusp is centred on the blade centre line if ICUSP = 0.
-C     The cusp makes the I=1 surface continuous on the cusp if  ICUSP =  1.
-C     The cusp makes the I=IM surface continuous on the cusp if ICUSP = -1.
-C     The cusp is of length  LCUSP and starts LCUSPUP points before the
-C     trailing edge.
-C
-C
-      IF(IF_CUSP(NR).EQ.0) WRITE(6,*) '  NO CUSP SPECIFIED '
-C
-      IF(IF_CUSP(NR).EQ.1) THEN
-	   READ(5,*)    ICUSP(NR),LCUSP(NR),LCUSPUP(NR)
-           WRITE(6,*) ' ICUSP, LCUSP , LCUSPUP = ',
-     &                  ICUSP(NR),LCUSP(NR),LCUSPUP(NR)
-           WRITE(6,*)
-      END IF
-C
-C    IF  IF_CUSP = 2 a body force is used to force separation at the trailing edge.
-C    The force starts NUP_I1 grid points upstream of the TE  om the I=1 blade surface, 
-C    and at NUP_IM points upstream on the I=IM blade surface. It extends N_WAKE points
-C    downstream of the TE. The thickness of the affected layer is determined bt SEP_THIK
-C    , typical value  0.01, and the strength of the body force by SEP_DRAG, typical value 0.99.
-C
-      IF(IF_CUSP(NR).EQ.2) THEN
-           ICUSP(NR)   = 0
-           LCUSP(NR)   = 0
-           LCUSPUP(NR) = 0
-           READ(5,*)  NUP_I1(NR),NUP_IM(NR),N_WAKE(NR),
-     &                  SEP_THIK(NR),SEP_DRAG(NR)
-           WRITE(6,*)' BODY FORCE USED TO FORCE TRAILING EDGE SEPARTION'
-           WRITE(6,*)' CUSP BODY FORCE POINTS, NUP_I1, NUP_IM, N_WAKE, 
-     & SEP_THICK, SEP_DRAG'
-             WRITE(6,*) NUP_I1(NR),NUP_IM(NR),N_WAKE(NR),
-     &                  SEP_THIK(NR),SEP_DRAG(NR)
-             WRITE(6,*)
-      END IF
-C
-C
-C     READ IN THE RPM, TIP CLEARANCE AND INITIAL GUESS OF INLET AND EXIT 
-C     PRESSURES FOR THIS BLADE ROW.
-C
-      READ(5,1100) RPMROW,PUPROW,PLEROW,PTEROW,PDNROW,FRACTIP(NR),RPMHUB
-      WRITE(6,1730)RPMROW,PUPROW,PLEROW,PTEROW,PDNROW,FRACTIP(NR),RPMHUB
-C
-      IF(FRACTIP(NR).LT.0.0) THEN 
-           READ(5,*) FRACTIP1(NR),FRACTIP2(NR)
-           WRITE(6,*)' FRACTIP1,  FRACTIP2 = ',FRACTIP1(NR),FRACTIP2(NR)
-      ELSE
-           FRACTIP1(NR) = FRACTIP(NR)
-           FRACTIP2(NR) = FRACTIP(NR)
-      END IF
-C
-C
-C      FTHICK(NR,K) IS THE MULTIPLYING FACTOR ON THE BLADE THICKNESS SO
-C      THAT IT CAN BE REDUCED AT THE TIP. IT IS ASSUMED TO BE 1.0 UNLESS
-C      INPUT HERE.
-C
-      DO 2507 K=1,KM
- 2507 FTHICK(NR,K)=1.0
-      IF(KTIPS(NR).GT.0)  READ(5,1100) (FTHICK(NR,K),K=1,KM)
-      IF(KTIPS(NR).GT.0) WRITE(6,1700) (FTHICK(NR,K),K=1,KM)
-C
-C*********************************************************************************
-C*********************************************************************************
-C*********************************************************************************
-C
-      J2 = J1 + JMROW - 1
-      ANGLEAN = 0.0
-      IF_ANGLES(NR) = 0
-C
-C*********************************************************************************
-C*********************************************************************************
-C      NOW  READ IN MAIN GEOMETRICAL DATA FOR THE BLADE ROW 
-C      ON  NOSECT  BLADE SECTIONS OF THE CURRENT BLADE ROW
-C*********************************************************************************
-C**********************************************************************************
-C
-      DO 1555 K=1,NSECS_ROW
-C
-C
-      READ(5,1111)  FAC1,XSHIFT,IF_DESIGN,IF_RESTAGGER,IF_LEAN
-      WRITE(6,1111) FAC1,XSHIFT,IF_DESIGN,IF_RESTAGGER,IF_LEAN
- 1111 FORMAT(2F10.5,3I10)
-C 
-C******************************************************************************
-C******************************************************************************
-C    DO NOT READ IN AN EXISTING BLADE SECTION IF  "IF_DESIGN"  IS NON-ZERO. 
-C    JUMP TO 1510 TO DESIGN A NEW SECTION
-C 
-      IF(IF_DESIGN.NE.0) GO TO 1510
-C
-C******************************************************************************
-C******************************************************************************
-C***********XSURF(J,K) IS AXIAL COORDINATE OF POINTS ON THE STREAMWISE SURFACE.
-C
-      READ(5,1100)  (XSURF(J,K),J=J1,J2)
-      WRITE(6,1700) (XSURF(J,K),J=J1,J2)
-C
-C
-C     LEAN THE WHOLE BLADE BY AN ANGLE ANGLEAN IF ANGLEAN IS GREATER THAN ZERO)
-C
-           READ(5,1100)  FAC2,TSHIFT
-           WRITE(6,1700) FAC2,TSHIFT   
-C
-C***********RT_UPP(J,K) IS THE R-THETA COORDINATE OF POINTS ON THE STREAMWISE
-C           SURFACE ON THE BLADE SURFACE WITH LARGEST VALUE OF THETA.
-C           i.e. THE UPPER SURFACE OF THE BLADE AND THE LOWER SURFACE OF THE
-C                BLADE TO BLADE PASSAGE.
-C
-      READ(5,1100)  (RT_UPP(J,K),J=J1,J2)
-      WRITE(6,1700) (RT_UPP(J,K),J=J1,J2)
-C
-C
-      READ(5,1100)  FAC3,BETAUP(NR,K),BETADWN1(NR,K),BETADWN2(NR,K)
-      WRITE(6,1700) FAC3,BETAUP(NR,K),BETADWN1(NR,K),BETADWN2(NR,K)
-C
-C
-      IF(ABS(BETADWN2(NR,K)).LT.0.0001) BETADWN2(NR,K) = BETADWN1(NR,K)
-      IF(ABS(BETADWN2(NR,K)).GT.0.0001) IF_ANGLES(NR) = 1
-C
-C
-C***********RT_THICK(J,K) IS BLADE THICKNESS DELTA R-THETA MEASURED
-C           IN THE TANGENTIAL DIRECTION.
-C
-      READ(5,1100)  (RT_THICK(J,K),J=J1,J2)
-      WRITE(6,1700) (RT_THICK(J,K),J=J1,J2)
-C
-C
-C      IF INSURF =1 OR 2 RSURF(J,K) IS RADII OF POINTS ON THE STREAMWISE
-C      SURFACES ON WHICH DATA IS INPUT.
-C      IF INSURF =0 RCYL(J) IS THE RADIUS OF THE CYLINDRICAL SURFACES ON
-C       DATA IS INPUT
-C
-      READ(5,1100)   FAC4,RSHIFT
-      WRITE(6,1700)  FAC4,RSHIFT
-C
-C
-      IF(INSURF.NE.0) READ(5,1100)  (RSURF(J,K),J=J1,J2)
-      IF(INSURF.NE.0) WRITE(6,1700) (RSURF(J,K),J=J1,J2)
-      IF(INSURF.EQ.0) READ(5,1100)  RCYL(K)
-      IF(INSURF.EQ.0) WRITE(6,1700) RCYL(K)
-C
-C******************************************************************************
-C******************************************************************************
-C     SHIFT THE BLADE SECTION BY XSHIFT OR TSHIFT
-C
-      DO 1500 J=J1,J2
-      IF(INSURF.EQ.0)  RSURF(J,K) = RCYL(K)
-      XSURF(J,K)    = FAC1*(XSHIFT + XSURF(J,K))
-      RT_THICK(J,K) = FAC3*RT_THICK(J,K)
-      RSURF(J,K)    = FAC4*(RSHIFT + RSURF(J,K))
-      RT_UPP(J,K)   = FAC2*(TSHIFT + RT_UPP(J,K))
- 1500 CONTINUE
-C 
-C******************************************************************************
-C******************************************************************************
- 1510 CONTINUE
-C******************************************************************************
-C******************************************************************************
-C     JDD ADDITION TO ALLOW REDESIGN OF THIS BLADE SECTION.
-C     CHANGED TO USE SUBROUTINE RE_DESIGN. AUGUST 2016.
-C
-      IF(IF_DESIGN.NE.0) THEN
-          WRITE(6,*)'CALLING RE_DESIGN TO GENERATE A NEW BLADE GEOMETRY'
-          CALL RE_DESIGN(NR,K,J1,J2,JLEROW,JTEROW) 
-          BETAUP(NR,K)   = 0.0
-          BETADWN1(NR,K) = 0.0
-          BETADWN2(NR,K) = 0.0
-          IF_ANGLES(NR)  = 0
-      END IF
-C   
-C    END OF OPTION TO REDESIGN THE BLADE SECTION
-C******************************************************************************
-C******************************************************************************
-C
-C     RESTAGGER THE BLADE SECTION IF "IF_RESTAGGER" IS NON-ZERO.
-C
-      IF(IF_RESTAGGER.NE.0) THEN
-      WRITE(6,*) ' CALLING SUBROUTINE RESTAGGER TO ROTATE THE BLADE '
-      CALL RESTAGGER(K,J1,J2,JLEROW,JTEROW,ROTATE,FRACX_ROT)
-      END IF
-C
-C******************************************************************************
-C******************************************************************************
-C 
-C    LEAN THE BLADE SECTION IF "IF_LEAN"  IS NOT ZERO.
-C
-      IF(IF_LEAN.NE.0) THEN
-      WRITE(6,*) ' CALLING SUBROUTINE LEAN TO LEAN THE BLADE SECTION '
-      CALL LEAN(K,J1,J2,ANGLEAN)
-      END IF
-C
-C******************************************************************************
-C******************************************************************************
-C   Q3D
-C     CALL SET SSTHICK TO SET THE STREAM SURFACE THICKNESS IF DOING A Q3D
-C     BLADE TO BLADE CALCULATION. THEN END THE GEOMETRY INPUT FOR THIS BLADE ROW
-C     AS ONLY A SINGLE STREAM SURFACE IS USED .
-C
-      IF(KM.EQ.2) THEN
-           CALL SET_SSTHICK(J1,J2)
-C    JUMP OUT OF THE DO 1555 LOOP AS ONLY ONE STREAM SURFACE IS NEEDED.
-C    SKIP THE SEPARATE HUB AND CASING GEOMETRY INPUT IF DOING A Q3D CALCULATION.
-           GO TO 1504
-      END IF
-C   END Q3D
-C
-C******************************************************************************
-C******************************************************************************
-C     END IF INPUT FOR THIS BLADE SECTION
-C
- 1555 CONTINUE
-C
-C
-C******************************************************************************
-C******************************************************************************
-C  TFLOW
-C******************************************************************************
-C******************************************************************************
-C  IF A THROUGHFLOW CALCULATION READ IN THE REQUIRED EXIT FLOW ANGLE OR DEVIATION 
-C  ANGLE FOR THIS BLADE ROW. ANGL_TYP = 'A' FOR EXIT ANGLE, = 'D' FOR DEVIATION ANGLE.
-C
-      IF(IM.EQ.2) THEN  
-      READ(5,*)    DUMMY_INPUT
-      WRITE(6,*) ' INPUTTING THE THROUGHFLOW DATA '
-      READ(5,*)    ANGL_TYP(NR), NANGLES(NR)
-      READ(5,*)  ( FRAC_SPAN(NR,NK),NK=1,NANGLES(NR))
-      READ(5,*)  ( EXIT_ANGL(NR,NK),NK=1,NANGLES(NR))
-      WRITE(6,*) ' NANGLES = ',NANGLES(NR),' ANGL_TYP = ',ANGL_TYP(NR)
-      WRITE(6,9048) (FRAC_SPAN(NR,NK),NK=1,NANGLES(NR))
-      IF(ANGL_TYP(NR).EQ.'A')
-     &     WRITE(6,9045) (EXIT_ANGL(NR,NK),NK=1,NANGLES(NR))
-      IF(ANGL_TYP(NR).EQ.'D')
-     &     WRITE(6,9046) (EXIT_ANGL(NR,NK),NK=1,NANGLES(NR))
- 9048 FORMAT(' FRACTION OF SPAN',/,(10F10.3))
- 9045 FORMAT(' EXIT FLOW ANGLE IN DEGREES ',/,(10F10.3))
- 9046 FORMAT(' EXIT FLOW ANGLE DEVIATION FROM GRID ANGLE, IN DEGREES.',
-     & /,(10F10.3))
-      WRITE(6,*) ' END THROUGHFLOW DATA '
-      END IF
-C ******************************************************************************
-C  END TFLOW
-C******************************************************************************
-C******************************************************************************
-C
-c          INPUT THE HUB AND CASING GEOMETRY.
-C          IF INSURF = 2 THE HUB AND CASING  ARE TAKEN AS THE
-C          FIRST AND LAST STREAMWISE SURFACES. OTHERWISE READ IN
-C          HUB AND CASING COORDINATES AT THE ENDS OF THE QUASI ORTHOGONALS.
-C          THIS CANNOT BE USED IF KM = 2 for a Q3D CALCULATION.
-C
-      IF(INSURF.NE.2) THEN
-C
-      READ(5,1100)  (X(J,1),J=J1,J2)
-      READ(5,1100)  (R(J,1),J=J1,J2)
-      WRITE(6,1700) (X(J,1),J=J1,J2)
-      WRITE(6,1700) (R(J,1),J=J1,J2)
-      READ(5,1100)  (X(J,KM),J=J1,J2)
-      READ(5,1100)  (R(J,KM),J=J1,J2)
-      WRITE(6,1700) (X(J,KM),J=J1,J2)
-      WRITE(6,1700) (R(J,KM),J=J1,J2)
-      DO 1505 J=J1,J2
-      X(J,1)  = (XSHIFT + X(J,1))*FAC1
-      R(J,1)  = (RSHIFT + R(J,1))*FAC4
-      X(J,KM) = (XSHIFT + X(J,KM))*FAC1
- 1505 R(J,KM) = (RSHIFT + R(J,KM))*FAC4
-C
-      ELSE
-C
-      DO 1503 J = J1,J2
-      R(J,1)    = RSURF(J,1)
-      R(J,KM)   = RSURF(J,NSECS_ROW)
-      X(J,1)    = XSURF(J,1)
-      X(J,KM)   = XSURF(J,NSECS_ROW)
- 1503 CONTINUE
-C
-      END IF
-C
-C*********************************************************************************
-C*********************************************************************************
-c     interpolate extra input sections if  NSECS_ROW  NOT EQUAL TO   NOSECT
-C     THIS ROUTINE PROVIDED BY S GALLIMORE.
-c
-      IF(NSECS_ROW.NE.NOSECT)THEN
-        DO J = J1,J2
-	  FSPAN(1) = 0.0
-          DO K = 1,NSECS_ROW
-            XINT1(K) = xsurf(J,K)
-            XINT2(K) = rsurf(J,K)
-            XINT3(K) = rt_upp(J,K)
-            XINT4(K) = rt_thick(J,K)
-            IF (K.GT.1) THEN
-              RD = rsurf(J,K)-rsurf(J,K-1)
-              XD = xsurf(J,K)-xsurf(J,K-1)
-	    FSPAN(K) = FSPAN(K-1) + SQRT(XD*XD+RD*RD)
-            END IF
-          END DO
-c
-          xarg = 0.0
-          DO K = 1,NOSECT
-            IF(k.gt.1) xarg = xarg+(FSPAN(NSECS_ROW)/(nosect-1))
-            CALL INTP(NSECS_ROW,FSPAN,XINT1,XARG,xsurf(J,K))
-            CALL INTP(NSECS_ROW,FSPAN,XINT2,XARG,rsurf(J,K))
-            CALL INTP(NSECS_ROW,FSPAN,XINT3,XARG,rt_upp(J,K))
-            CALL INTP(NSECS_ROW,FSPAN,XINT4,XARG,rt_thick(J,K))
-          END DO
-        END DO
-      END IF
-C
-C****************************************************************************
-C  RE-ENTER HERE IF KM = 2
- 1504 CONTINUE
-C
-C****************************************************************************
-C      CALL NEWGRID FOR THE CURRENT BLADE ROW IF REQUESTED
-C      THIS READS IN MORE DATA AND GENERATES NEW STREAMWISE (J) GRID POINTS.
-C
-      IF(NEW_GRID.NE.0) CALL NEWGRID(JMROW,J1,J2,
-     &                JLEROW,JTEROW,JROTHS,JROTHE,JROTTS,JROTTE)
-C
-C*****************************************************************************
-C
-C      SET THE J MARKERS, INITIAL GUESS OF PRESSURE, ETC
-C
-      JLE(NR) = J1+JLEROW-1
-      JTE(NR) = J1+JTEROW-1
-      J2      = J1 -1 + JMROW
-      JROW    = 0
-C
-      DO 100 J = J1,J2
-      JM1      = J-1
-      IF(J.EQ.1) JM1=1
-      JROW     = JROW+1
-C
-C      SET THE ROTATION OF THE HUB AND CASING.
-C      THE DEFAULT IF JROTHS AND JROTTS ARE ZERO
-C      IS THAT THE WHOLE HUB IS ROTATING AT THE SAME SPEED AS
-C      THE BLADE ROW AND THE CASING IS STATIONARY.
-C
-      WRAD(J) = RPMROW*3.14159/30.
-      WHUB(J) = 0.0
-      IF(JROW.GT.JROTHS.AND.JROW.LT.JROTHE) WHUB(J) = RPMHUB*3.14159/30.
-      WTIP(J) = 0.0
-      IF(JROW.GT.JROTTS.AND.JROW.LT.JROTTE) WTIP(J) = WRAD(J)
-C
-C     SET LIMITS OF SOLID PART OF THE BLADE ELEMENTS, IE WHERE NO FLOW.
-C     THESE ARE FROM 1 TO KTIPS-1  OR FROM KTIPE TO KM-1
-C
-      IF(KTIPS(NR).LE.0) THEN
-      KS1(NR) = 1
-      KS2(NR) = KMM1
-      ENDIF
-      IF(KTIPS(NR).EQ.1) THEN
-      KS1(NR) = KTIPE(NR)
-      KS2(NR) = KMM1
-      ENDIF
-      IF(KTIPS(NR).GT.1) THEN
-      KS1(NR)   = 1
-      KS2(NR)   = KTIPS(NR)-1
-      KTIPE(NR) = KM
-      ENDIF
-C
-      IND(J)    = 0
-      INDLE(J)  = 0
-      INDTE(J)  = 0
-      INDMIX(J) = 0
-      INDMID(J) = 0
-      NBLADE(J) = NBLADES_IN_ROW
-      NROW(J)   = NR
-      JMIDRW    = 0.5*(JLEROW+JTEROW)
-      IF(JROW.GT.JLEROW.AND.JROW.LE.JTEROW) IND(J)=1
-      IF(JROW.EQ.JLEROW) INDLE(J)    = 1
-      IF(JROW.EQ.JLEROW) JLED(NR)    = J
-      IF(JROW.EQ.JTEROW) INDTE(J)    = 1
-      IF(JROW.EQ.JLEROW) INDLE(J-1) = -1
-      IF(JROW.EQ.JLEROW) INDLE(J-2) = -2
-      IF(JROW.EQ.JMIDRW) INDMID(J)   = 1
-      IF(JROW.LE.JLEROW) PGUESS(J) = PUPROW+(PLEROW-PUPROW)*
-     & (JROW-1)/(JLEROW-1)
-      IF(JROW.GT.JLEROW.AND.JROW.LE.JTEROW) PGUESS(J) = 
-     &          PLEROW + (PTEROW-PLEROW)*(JROW-JLEROW)/(JTEROW-JLEROW)
-      IF(JROW.GT.JTEROW) PGUESS(J) =
-     &          PTEROW + (PDNROW-PTEROW)*(JROW-JTEROW)/(JMROW-JTEROW)
-  100 CONTINUE
-C
-       INDMIX(J2) = 1
-       JMIX(NR)   = J2
-       JSTART(NR) = J1
-C
-C     RESET THE J INDEX TO CONTINUE THROUGH THE NEXT BLADE ROW, IF ANY.
-C
-      J1 = J2 + 1
-C
-C        END OF DATA INPUT ON THIS BLADE ROW. RETURN TO INPUT DATA ON THE
-C        NEXT ROW UNLESS THIS IS THE LAST, IE UNLESS NR=NROWS.
-C
- 1550 CONTINUE
-C
-C       END OF INPUT OF BLADE GEOMETRY DATA
-C
-      JM         = J2
-      JMM1       = JM-1
-      JMM2       = JM-2
-      INDMIX(JM) = 0
-C
-C
-C     CHECK THAT JM IS NOT TOO LARGE.
-C
-      IF(JM.GT.JD)  WRITE(6,*) 'STOPPING BECAUSE JM TOO LARGE.',
-     &            ' JM= ',JM,' DIMENSION LIMIT = ',JD
-      IF(JM.GT.JD) STOP
-C
-C**********************************************************************************
-C**********************************************************************************
-C    START TO SET THE GRID BETWEEN BLADE ROWS AND MAKE THE MIXING PLANES CONTIGUOUS
-C**********************************************************************************
-C
-C     SKIP THE NEXT PART AND DO NOT MOVE THE BLADES OR GRID IF ISHIFT = 0 .
-      IF(ISHIFT.EQ.0) GO TO 140
-C     
-      IF(ISHIFT.GE.2) GO TO 133
-C
-C      NEXT SECTION ONLY FOR ISHIFT = 1
-C      IF  ISHIFT = 1  AUTOMATICALLY SHIFT THE BLADES TO MAKE THE X SPACING CONTINUOUS
-C      BETWEEN THE LAST GRID POINT ON ONE BLADE AND THE FIRST GRID POINT ON THE NEXT
-C      ONE ON THE HUB STREAMLINE BUT DO NOT CHANGE THE GRID SPACINGS.
-C
-      XSHIFT = 0.0
-      DO 130 J = 2,JM
-      IF(INDMIX(J-1).NE.1) GO TO 129
-      DIFF1  = XSURF(J-1,1) - XSURF(J-2,1)
-      DIFF2  = XSURF(J+1,1) - XSURF(J,1)
-      XSHIFT = XSURF(J-1,1) + 0.01*(DIFF1+DIFF2) - XSURF(J,1)
-  129 CONTINUE
-      DO 131 K=1,KM
-      XSURF(J,K) = XSURF(J,K) + XSHIFT
-      X(J,K)     = X(J,K)     + XSHIFT
-  131 CONTINUE
-  130 CONTINUE
-C
-C     MAKE NO MORE CHANGES TO THE GRID IF ISHIFT = 1.
-      IF(ISHIFT.EQ.1) GO TO 140
-C
-C**********************************************************************************
-C     RE ENTER HERE IF ISHIFT = 2
-  133 CONTINUE
-C
-C********************************************************************************
-C      START TO MAKE THE GRID SPACING VARY GEOMETRICALLY BETWEEN BLADE ROWS 
-C      IF ISHIFT >= 2.
-C*******************************************************************************
-C
-      NR   = 1
-      JST  = 1
-      JEND = JLE(1)
-C
-C******************************************************************************
-C
- 6666 CONTINUE
-C
-C******************************************************************************
-      DO 210 K=1,NOSECT
-C
-      SMERID(1,K) = 0.0
-      DO 213 J=2,JM
-      XD = XSURF(J,K)  - XSURF(J-1,K)
-      RD = RSURF(J,K)  - RSURF(J-1,K)
-  213 SMERID(J,K) = SMERID(J-1,K) + SQRT(XD*XD+RD*RD)
-C
-C    IF ISHIFT = 2 MAINTAIN THE MERIDIONAL CURVE IN THE GAP BETWEEN BLADE ROWS.
-C    IF ISHIFT = 3 MAKE THE MERIDIONAL VIEW OF THE GRID LINEAR IN THE GAP BETWEEN BLADE ROWS.
-C    IF ISHIFT = 4 SAME AS 3 BUT DO NOT CHANGE THE HUB AND CASING PROFILES
-C
-      DLAST = -1.0
-      NP = 1
-      XGAP = XSURF(JEND,K)  - XSURF(JST,K)
-      RGAP = RSURF(JEND,K)  - RSURF(JST,K)
-      GAP  = SQRT(XGAP*XGAP + RGAP*RGAP)
-C
-      DO 110 J = JST,JEND
-      XD   = XSURF(J,K)  - XSURF(JST,K)
-      RD   = RSURF(J,K)  - RSURF(JST,K)
-      PROJ = (XD*XGAP + RD*RGAP)
-
-      IF(ISHIFT.GE.3) PROJ = PROJ/GAP
-
-      DIST = SQRT(XD*XD+RD*RD)
-      IF(PROJ.LT.0.0) GO TO 110
-      IF(DIST.GT.(1.00001*GAP)) THEN
-      XINT(NP) = XSURF(JEND,K)
-      RINT(NP) = RSURF(JEND,K)
-      NP = NP+1
-      GO TO 111
-      ENDIF
-      IF(DIST.LT.DLAST) GO TO 110
-      DLAST     = DIST
-
-      IF(ISHIFT.EQ.3) THEN
-           XINT(NP)  = XSURF(JST,K)   + PROJ*XGAP/GAP
-           RINT(NP)  = RSURF(JST,K)   + PROJ*RGAP/GAP
-      ENDIF
-
-      IF(ISHIFT.EQ.2) THEN
-           XINT(NP)  = XSURF(J,K)
-           RINT(NP)  = RSURF(J,K)
-      ENDIF
-
-      IF(ISHIFT.EQ.4) THEN
-           IF(K.EQ.1.OR.K.EQ.NOSECT) THEN
-                XINT(NP)  = XSURF(J,K)
-                RINT(NP)  = RSURF(J,K)
-           ELSE
-                XINT(NP)  = XSURF(JST,K)   + PROJ*XGAP/GAP
-                RINT(NP)  = RSURF(JST,K)   + PROJ*RGAP/GAP
-           END IF
-      END IF
-C
-      NP = NP+1
-C
-  110 CONTINUE
-C
-  111 CONTINUE
-C
-C    SMOOTH THE X AND R COORDINATES IN THE BLADE TO BLADE GAP
-C
-      NGAP    = NP - 1
-      NSMOOTH = 10
-      SFGAP   = 0.2
-      DO 113 NS = 1,NSMOOTH
-      DO 114 NN = 2,NGAP-1
-      XINT(NN) = (1.-SFGAP)*XINT(NN) + SFGAP*0.5*(XINT(NN-1)+XINT(NN+1))
-      RINT(NN) = (1.-SFGAP)*RINT(NN) + SFGAP*0.5*(RINT(NN-1)+RINT(NN+1))
-  114 CONTINUE
-  113 CONTINUE
-C
-C
-      SDIST(1)  = SMERID(JST,K)
-      DO 112 NN = 2,NGAP
-      XD = XINT(NN) - XINT(NN-1)
-      RD = RINT(NN) - RINT(NN-1)
-  112 SDIST(NN) = SDIST(NN-1) + SQRT(XD*XD+RD*RD)
-C
-C
-      SMID   = 0.5*(SDIST(1) + SDIST(NGAP))
-      STE    = SDIST(1)
-      SLE    = SDIST(NGAP)
-      IF(NR.LE.NROWS) ANGLUP = BETAUP(NR,K)
-C
-      IF(NR.NE.1)  THEN
-                   ANGLDWN1 = BETADWN1(NR-1,K)
-                   ANGLDWN2 = BETADWN2(NR-1,K)
-      END IF
-C
-C******************************************************************************
-C    START TO CALL GRID_UP AND GRID_DOWN TO SET THE GRID UPSTREAM AND DOWNSTREAM OF
-C    ALL BLADE ROWS.
-C******************************************************************************
-C    CALL GRID_UP TO FORM THE GRID UPSTREAM OF THE FIRST BLADE ROW.
-C
-      IF(NR.EQ.1.AND.K.EQ.1) THEN
-            WRITE(6,*)
-            WRITE(6,*) ' STARTING NEW BLADE ROW, ROW NUMBER', 1
-            WRITE(6,*)
-      END IF
-      IF(NR.EQ.1) WRITE(6,*)
-     & ' CALLING GRID_UP FOR ROW 1, K = ',K, ' JSTART,JLE1= ',JST,JEND
-C
-      IF(NR.EQ.1)  CALL GRID_UP(K,JST,JEND,STE,SLE,NGAP,SDIST,XINT,
-     &             RINT,NEXTRAP_LE,ANGLUP,IF_ANGLES(NR))
-C
-C     CALL GRID_UP AND GRID_DOWN TO FORM THE GRIDS UPSTREAM AND DOWNSTREAM OF THE
-C     MIXING PLANE FOR INTERIOR BLADE ROWS.
-C
-      IF( (NR.NE.1.AND.NR.NE.NROWS+1).AND.K.EQ.1) THEN
-            WRITE(6,*)
-            WRITE(6,*) ' STARTING NEW BLADE ROW, ROW NUMBER',NR
-            WRITE(6,*)
-      END IF
-      IF(NR.NE.1.AND.NR.NE.NROWS+1) THEN
-C
-      WRITE(6,*)
-     &' CALLING GRID_DOWN FOR ROW No.',NR,'K = ',K,' JTE,JMID= ',
-     &  JST,JMID
-C
-      CALL GRID_DOWN(K,JST,JMID,STE,SMID,NGAP,SDIST,XINT,RINT,
-     &         NEXTRAP_TE,ANGLDWN1,ANGLDWN2,IF_CUSP(NR-1),ICUSP(NR-1),
-     &         LCUSP(NR-1),LCUSPUP(NR-1),IF_ANGLES(NR-1) )
-      WRITE(6,*)
-     &' CALLING GRID_UP FOR ROW No.  ',NR,'K = ',K,'JMID, JLE= ',
-     &  JMID+1,JEND
-      CALL GRID_UP(K,JMID+1,JEND,SMID,SLE,NGAP,SDIST,XINT,RINT,
-     &             NEXTRAP_LE,ANGLUP,IF_ANGLES(NR) )
-C
-      ENDIF
-C
-C     CALL GRID_DOWN TO FORM THE GRID DOWNSREAM OF THE LAST BLADE ROW.
-C
-      IF(NR.EQ.NROWS+1.AND.K.EQ.1) THEN
-            WRITE(6,*)
-            WRITE(6,*) ' STARTING NEW BLADE ROW, ROW NUMBER',NROWS
-            WRITE(6,*)
-      END IF
-C
-      IF(NR.EQ.NROWS+1)  THEN
-           ANGLDWN1 = BETADWN1(NROWS,K)
-           ANGLDWN2 = BETADWN2(NROWS,K)
-      WRITE(6,*)
-     & ' CALLING GRID_DOWN FOR THE LAST BLADE ROW, K = ',K,'JTE,JEND= ',
-     &   JST,JEND
-C
-      CALL GRID_DOWN(K,JST,JEND,STE,SLE,NGAP,SDIST,
-     &        XINT,RINT,NEXTRAP_TE,ANGLDWN1,ANGLDWN2,IF_CUSP(NR),
-     &        ICUSP(NROWS),LCUSP(NROWS),LCUSPUP(NROWS),IF_ANGLES(NROWS))
-C
-      END IF
-C
-      IF(ABS(ANGLUP).GT.0.0.OR.ABS(ANGLDWN1).GT.0.0) THEN
-           WRITE(6,*)
-           WRITE(6,*) 'ROW No ',NR,'SECTION No ',K,'ANGLUP= ',ANGLUP,
-     &                'ANGLDWN1 & 2= ',ANGLDWN1,ANGLDWN2,' DEGREES.'
-           WRITE(6,*)
-      END IF
-C
-C     END OF SETTING THE GRID UPSTREAM AND DOWNSREAM OF ALL BLADE ROWS.
-C
-  210 CONTINUE
-C
-      WRITE(6,*)
-C
-C********************************************************************************
-C
-      IF(JEND.EQ.JM) GO TO 200
-C
-      NR = NR + 1
-      IF(NR.NE.NROWS+1) THEN
-      JST    = JTE(NR-1)
-      JEND   = JLE(NR)
-      JMID   = JMIX(NR-1)
-      GO TO 6666
-      ENDIF
-      IF(NR.EQ.NROWS+1) THEN
-      JST  = JTE(NROWS)
-      JEND = JM
-      GO TO 6666
-      ENDIF
-C
-  200 CONTINUE
-C
-C      RESET SMERID
-C
-      DO 216 K=1,NOSECT
-      DO 216 J=2,JM
-      XD = XSURF(J,K) - XSURF(J-1,K)
-      RD = RSURF(J,K) - RSURF(J-1,K)
-  216 SMERID(J,K) = SMERID(J-1,K) + SQRT(XD*XD+RD*RD)
-
-C      RESET THE HUB AND CASING COORDINATES TO NEW STREAM SURFACE VALUES IF INSURF = 2.
-C
-      IF(INSURF.EQ.2) THEN
-C
-       DO 214 J=1,JM
-       X(J,1)  = XSURF(J,1)
-       R(J,1)  = RSURF(J,1)
-       X(J,KM) = XSURF(J,NOSECT)
-       R(J,KM) = RSURF(J,NOSECT)
-  214 CONTINUE
-C
-      ELSE
-C
-C    RESET THE HUB AND CASING COORDINATES IF INSURF IS NOT = 2.
-C
-      DO 218       NR = 1,NROWS+1
-      IF(NR.NE.1)  JT = JTE(NR-1)
-      IF(NR.EQ.1)  JT = 1
-      IF(NR.NE.NROWS+1) JL = JLE(NR)
-      IF(NR.EQ.NROWS+1) JL = JM
-      DO 215 K = 1,KM,KMM1
-      M = 1
-      IF(K.EQ.KM) M = NOSECT
-      DO 333      J = JT,JL
-      NJ            = J - JT + 1
-      IF(NJ.EQ.1) THEN
-      SDIST(NJ) = 0.0
-      ELSE
-      XD = X(J,K) - X(J-1,K)
-      RD = R(J,K) - R(J-1,K)
-      SDIST(NJ) = SDIST(NJ-1) + SQRT(XD*XD+RD*RD)
-      ENDIF
-      XINT(NJ) = X(J,K)
-      RINT(NJ) = R(J,K)
-  333 CONTINUE
-C
-      GAP = SDIST(NJ) - SDIST(1)
-      DO 334 NN = 2,NJ
-  334 SDIST(NN) = (SDIST(NN)-SDIST(1))/GAP
-C
-      SGAP = SMERID(JL,M) - SMERID(JT,M)
-      DO 217 J = JT,JL
-      ARG = (SMERID(J,M) - SMERID(JT,M))/SGAP
-      CALL LININT(NJ,SDIST,XINT,ARG,X(J,K))
-      CALL LININT(NJ,SDIST,RINT,ARG,R(J,K))
-  217 CONTINUE
-  215 CONTINUE
-  218 CONTINUE
-C
-      ENDIF
-C
-  140 CONTINUE
-C
-C   END OF GEOMETRY INPUT AND MANIPULATION.
-C******************************************************************************
-C******************************************************************************
-C
-C
-C******************************************************************************
-C******************************************************************************
-C**********READ IN GAS CONSTANTS ,TIME STEP LENGTH,SMOOTHING FACTOR,ETC.
-C
-      WRITE(6,*)'READING IN THE GAS CONSTANTS,TIME STEP LENGTH,SMOOTHING 
-     &FACTOR,ETC. '
-C
-      IFGAS = 0
-      READ(5,1100)  CP,GA,CFL,SFTIN,SFXIN,MACHLIM
-      WRITE(6,1701) CP,GA,CFL,SFTIN,SFXIN,MACHLIM
-      IF(MACHLIM.LT.1.0) MACHLIM = 2.0
-C
-C    USE REAL GAS PROPERTIES IF CP IS INPUT AS NEGATIVE.
-C    TYPICAL VALUES FOR COMBUSTION PRODUCTS  ARE:CP1 = 1272.5, CP2 = 0.2125, CP3 = 0.000015625, RGAS = 287.15
-C    AT  TREF = 1400 K.
-C
-      IF(CP.LT.0.0) THEN
-      READ(5,*) CP1, CP2, CP3, TREF, RGAS
-C
-      WRITE(6,*) ' IDEAL GAS PROPERTIES READ IN '
-      WRITE(6,*) ' CP1, CP2, CP3, TREF, RGAS =',CP1,CP2,CP3,TREF,RGAS
-C
-      CPGAS  = CP1
-      GAGAS  = CP1/(CP1 - RGAS)
-      CP     = CP1
-      GA     = GAGAS
-      CV     = CP/GA
-      IFGAS  = 1
-      CALL SET_COEFFS
-      END IF
-C
-C******************************************************************************
-C******************************************************************************
-C
-      READ(5,1100)  DAMPIN,DUMM,FBLK1,FBLK2,FBLK3,SFEXIT,CONLIM,RFIN
-      IF(SFEXIT.GT.0.0001) READ(5,*) NSFEXIT
-      WRITE(6,1700) DAMPIN,DUMM,FBLK1,FBLK2,FBLK3,SFEXIT,CONLIM,RFIN
-      IF(SFEXIT.GT.0.0001) WRITE(6,*) NSFEXIT
-C
-      IF(DAMPIN.LT.0.001)    DAMPIN = 10.
-      IF(CONLIM.LT.0.000001) CONLIM = 0.005
-      IF(RFIN.LT.0.000001)   RFIN = 0.10
-      RFTHROTL = 0.0
-C
-C******************************************************************************
-C******************************************************************************
-C      READ IN INITIAL GUESS OF UPSTREAM AND DOWNSTREAM PRESSURES
-C      ,STAGNATION TEMPERATURE , VELOCITIES,FLOW DIRECTIONS,ETC.
-C
-      READ(5,1100)  PUPHUB,PUPTIP,PDOWN_HUB,PDOWN_TIP,PLATE_LOSS,
-     &              THROTTLE_EXIT,DUMM,F_PDOWN
-      IF(THROTTLE_EXIT.GT.0.001) READ(5,*) THROTTLE_PRES, THROTTLE_MAS,
-     &                                      RFTHROTL
-      WRITE(6,1720) PUPHUB,PUPTIP,PDOWN_HUB,PDOWN_TIP,PLATE_LOSS,
-     &              THROTTLE_EXIT,DUMM,F_PDOWN
-      IF(THROTTLE_EXIT.GT.0.001) WRITE(6,*) THROTTLE_PRES,THROTTLE_MAS,
-     &                                       RFTHROTL
-C
-      RFTHROTL1 = 1.0 - RFTHROTL
-C
-      KMID=IFIX(0.5*KIN)
-C  Q3D
-      IF(KM.EQ.2) KMID = 1
-C  END Q3D
-C
-C******************************************************************************
-C******************************************************************************
-      WRITE(6,*)
-      WRITE(6,*) ' READING IN THE INLET BOUNDARY CONDITIONS '
-C
-      READ(5,1100)  (PO1(K),K=1,KIN)
-      WRITE(6,1720) (PO1(K),K=1,KIN)
-      PO_IN_MID = PO1(KMID)
-C
-      IF(IPOUT.EQ.3) READ(5,1100)(PD(K),K=1,KIN)
-      IF(IPOUT.EQ.3) WRITE(6,1720)(PD(K),K=1,KIN)
-C
-      READ(5,1100)  (TO1(K),K=1,KIN)
-      WRITE(6,1700) (TO1(K),K=1,KIN)
-      TO_IN_MID = TO1(KMID)
-C
-      READ(5,1100)  (VTIN(K),K=1,KIN)
-      WRITE(6,1700) (VTIN(K),K=1,KIN)
-      VT_IN_MID  = VTIN(KMID)
-C
-      READ(5,1100)  (VM1(K),K=1,KIN)
-      WRITE(6,1700) (VM1(K),K=1,KIN)
-C
-      READ(5,1100)  (BS(K),K=1,KIN)
-      WRITE(6,1700) (BS(K),K=1,KIN)
-      YAW_IN_MID = BS(KMID)
-C
-      READ(5,1100)  (BR(K),K=1,KIN)
-      WRITE(6,1700) (BR(K),K=1,KIN)
-      PITCH_IN_MID  = BR(KMID)
-C
-      READ(5,1100)  (FR_IN(K),K=1,KIN-1)
-      WRITE(6,1700) (FR_IN(K),K=1,KIN-1)
-C
-      READ(5,1100)  (FP(I),I=1,IMM1)
-      WRITE(6,1700) (FP(I),I=1,IMM1)
-C
-      READ(5,1000)  (NOUT(L),L=1,5)
-      WRITE(6,1600) (NOUT(L),L=1,5)
-C
-      READ(5,1610)  (IOUT(I),I=1,13)
-      WRITE(6,1610) (IOUT(I),I=1,13)
-C
-      READ(5,1610)  (KOUT(K),K=1,KM)
-      WRITE(6,1610) (KOUT(K),K=1,KM)
- 1610 FORMAT(40I2)
-C
-C***************************************************************************************
-C***************************************************************************************
-C     FORM THE FP(I) AND FR_IN(K) INTO A GEOMETRIC SERIES IF REQUESTED.
-C     BY SETTING FP(3) OR FR_IN(3) TO ZERO.
-C
-      NUM3 = 3
-C
-C   Q3D
-      IF(KM.EQ.2) THEN
-           FR_IN(1) = 1.0
-           FR_IN(2) = 0.0
-      ELSE
-C   END Q3D
-C
-      IF(FR_IN(NUM3).GT.0.00001) GO TO 555
-      FRRAT = FR_IN(1)
-      FRMAX = FR_IN(2)
-      FR_IN(1) = 1.0
-      FR_IN(KM)  = 0.0
-      FR_IN(KIN) = 0.0
-      DO 556 K = 2,KIN-1
-           FR_IN(K) = FR_IN(K-1)*FRRAT
-  556 CONTINUE
-      DO 557 K = 1,KIN-1
-           FREV  = FR_IN(KIN-K)
-           IF(FREV.LT.FR_IN(K))  FR_IN(K) = FREV
-           IF(FR_IN(K).GT.FRMAX) FR_IN(K) = FRMAX
-  557 CONTINUE
-C
-  555 CONTINUE
-C
-      END IF
-C
-C   NEXT FOR THE PITCHWISE GRID SPACINGS, FP(I) .
-C   THROUGHFLOW
-      IF(IM.EQ.2) THEN
-            FP(1) = 1.0
-            FP(2) = 0.0
-      ELSE
-C  END THROUGHFLOW
-C
-      IF(FP(NUM3).GT.0.00001) GO TO 563
-      FPRAT = FP(1)
-      FPMAX = FP(2)
-      FP(1) = 1.0
-      FP(IM)= 0.0
-      DO 564 I=2,IMM1
-      FP(I) = FP(I-1)*FPRAT
-  564 CONTINUE
-      DO 565 I=1,IMM1
-      FREV  = FP(IM-I)
-      IF(FREV.LT.FP(I))  FP(I) = FREV
-      IF(FP(I).GT.FPMAX) FP(I) = FPMAX
-  565 CONTINUE
-C
-  563 CONTINUE
-C
-      END IF
-C
-C***************************************************************************************
-C***************************************************************************************
-C
-C     READ IN IN THE SPECIFIED INLET FLOW AND RELAXATION FACTOR
-C     IF IN_FLOW NOT = ZERO
-C
-      IF(IN_FLOW.NE.0) THEN
-           READ(5,1100)  FLOWIN, RFLOW
-           WRITE(6,*)  ' FLOWIN, RFLOW ', FLOWIN,RFLOW
-           FLOWIN = FLOWIN/NBLADE(1)
-      END IF
-C
-C******************************************************************************
-C******************************************************************************
-C      READ IN DATA FOR VISCOUS FLOW MODELLING.
-C
-      REYNO       = 500000.0
-      RF_VIS      = 0.5
-      FTRANS      = 0.0001
-      FAC_4TH     = 0.8
-      PRANDTL     = 1.0
-      YPLUSWALL   = 0.0
-      TURBVIS_LIM = 3000.0
-C
-      IF(ILOS.NE.0) THEN
-      READ(5,*,END=448,ERR=448)REYNO,RF_VIS,FTRANS,FAC_4TH,TURBVIS_LIM,
-     &                         PRANDTL,YPLUSWALL
-  448 CONTINUE
-C
-      IF(TURBVIS_LIM.LT.0.1) TURBVIS_LIM = 3000.0
-C
-      WRITE(6,*)
-      WRITE(6,*) ' REYNOLDS NUMBER                       = ',REYNO
-      WRITE(6,*) ' VISCOUS TERM RELAXATION FACTOR        = ',RF_VIS
-      WRITE(6,*) ' TRANSITION FACTOR, FTRANS             = ',FTRANS
-      WRITE(6,*) ' PROPORTION OF FOURTH ORDER SMOOTHING  = ', FAC_4TH
-      WRITE(6,*) ' LIMIT ON TURBULENT/LAMINAR VISCOSITY  = ',TURBVIS_LIM
-      WRITE(6,*) ' PRANDTL NUMBER                        = ',PRANDTL
-      WRITE(6,*) ' YPLUSWALL - IF USED (NOT OFTEN USED)  = ',YPLUSWALL
-      WRITE(6,*) ' MACH NUMBER  LIMITER, USUALLY 2.0     = ',MACHLIM
-      WRITE(6,*)
-C
-      IF(ILOS.GE.200)THEN
-           FAC_STMIX = 0.0
-           FAC_ST0   = 1.0
-           FAC_ST1   = 1.0
-           FAC_ST2   = 1.0
-           FAC_ST3   = 1.0
-           FAC_SFVIS = 2.0
-           READ(5,*,END = 450,ERR= 450) FAC_STMIX, FAC_ST0, FAC_ST1,
-     &                                  FAC_ST2, FAC_ST3, FAC_SFVIS,
-     &                                  FAC_VORT,FAC_PGRAD 
-  450 CONTINUE
-C
-           WRITE(6,*)
-           WRITE(6,*) ' SPALART-ALLMARAS TURBULENCE MODEL IS BEING USED'
-           WRITE(6,*) ' THE S_A SOURCE TERM MULTIPLIERS ARE ',
-     &                  FAC_STMIX, FAC_ST0, FAC_ST1, FAC_ST2, FAC_ST3,
-     &                  FAC_VORT,FAC_PGRAD 
-           WRITE(6,*) ' THE TURBULENT VISCOSITY SMOOTHING FACTOR IS ', 
-     &                  FAC_SFVIS
-           WRITE(6,*)
-      END IF
-C
-      END IF 
-C
-      WRITE(6,*)
-C
-C***************************************************************************************
-C**************************************************************************************
-C     READ IN THE MIXING PLANE PARAMETERS
-C
-      RFMIX    = 0.025
-      FSMTHB   = 1.0
-      FEXTRAP  = 0.95
-      FANGLE   = 0.95
-C
-      IF(IFMIX.NE.0) THEN
-      READ(5,*,END=449,ERR=449)  RFMIX,FEXTRAP,FSMTHB,
-     &                           FANGLE
-  449 CONTINUE
-      WRITE(6,*)' THE MIXING PLANE PARAMETERS ARE '
-      WRITE(6,*)' RFMIX, FEXTRAP, FSMTHB ,FANGLE',
-     &            RFMIX, FEXTRAP, FSMTHB, FANGLE
-      WRITE(6,*)
-      END IF
-C
-C***************************************************************************************
-C***************************************************************************************
-C    SET THE SPANWISE GRID SPACINGS,  "FR(K)" .
-C   THESE ARE THE SAME AS THE INLET BC SPACINGS, "FR_IN(K)" ,  IF "IF_KINT" = 0.
-C
-      IF(IF_KINT.EQ.1) THEN
-C
-C     READ IN THE RELATIVE SPANWISE SPACING OF THE GRID POINTS.
-C     NOTE THAT THIS IS FORMATTED INPUT.
-      READ(5,10)    (FR(K),K=1,KMM1)
-   10 FORMAT(8F10.5)
-C
-      WRITE(6,*)
-      WRITE(6,*)       ' THE RELATIVE SPACINGS OF THE GRID POINTS IN THE
-     &  SPANWISE DIRECTION ARE: '
-      WRITE(6,1700)(FR(K),K=1,KMM1)
-      WRITE(6,*)
-C
-C   MAKE THE SPANWISE SPACINGS INTO A GEOMETRICAL PROGRESSION IF FR(3) = 0 .
-      NUM3 = 3
-C
-      IF(KM.EQ.2) THEN
-           FR(1) = 1.0
-           FR(2) = 0.0
-      ELSE
-C
-      IF(FR(NUM3).GT.0.00001) GO TO 652
-      FRRAT = FR(1)
-      FRMAX = FR(2)
-      FR(1)=1.0
-      DO 650 K=2,KM-1
-      FR(K) = FR(K-1)*FRRAT
-  650 CONTINUE
-      DO 651 K=1,KMM1
-      FREV = FR(KM-K)
-      IF(FREV.LT.FR(K))  FR(K) = FREV
-      IF(FR(K).GT.FRMAX) FR(K) = FRMAX
-  651 CONTINUE
-C
-  652 CONTINUE
-C
-      END IF
-C
-C
-      WRITE(6,*) ' CALLING INPINT TO SET UP A NEW INLET FLOW. '
-C
-            CALL INPINT
-C
-      ELSE
-C
-      DO 655 K=1,KMM1
-           FR(K) = FR_IN(K)
-  655 CONTINUE
-C  END OF  IF IF_KINT = 1 LOOP
-      ENDIF
-C
-C***************************************************************************************
-C***************************************************************************************
-C      READ IN THE MIXING LENGTH LIMITS IF ILOS IS NOT ZERO.
-C
-      DO 2344 N = 1,NROWS
-           XLLIM_I1(N)  = 0.03
-           XLLIM_IM(N)  = 0.03
-           XLLIM_K1(N)  = 0.03
-           XLLIM_KM(N)  = 0.03
-           XLLIM_DWN(N) = 0.03
-           XLLIM_UP(N)  = 0.02
-           XLLIM_IN(N)  = 0.02
-           XLLIM_LE(N)  = 0.03
-           XLLIM_TE(N)  = 0.04
-           XLLIM_DN(N)  = 0.05
-           FSTURB(N)    = 1.0
-           TURBVIS_DAMP(N) = 0.5
- 2344 CONTINUE
-C
-C
-      IF(ILOS.NE.0) THEN
-C
-      DO 2345 N = 1,NROWS
-
-           IF(ILOS.LT.100) READ(5,*,ERR=2346)  XLLIM_I1(N),XLLIM_IM(N),
-     &                 XLLIM_K1(N),XLLIM_KM(N),XLLIM_DWN(N),XLLIM_UP(N)
-           IF(ILOS.GE.100) READ(5,*,ERR=2346)  XLLIM_IN(N),XLLIM_LE(N),
-     &                XLLIM_TE(N),XLLIM_DN(N),FSTURB(N),TURBVIS_DAMP(N)
-C           
- 2346 CONTINUE
-C
-           WRITE(6,*) ' ROW NUMBER ', N
-           IF(ILOS.LT.100) WRITE(6,*)'ILOS = 9/10 MIXING LENGTH LIMITS',
-     &     XLLIM_I1(N),XLLIM_IM(N),XLLIM_K1(N),XLLIM_KM(N),XLLIM_DWN(N),
-     &     XLLIM_UP(N)
-           IF(ILOS.GE.100) WRITE(6,*) 'ILOS > 100 MIXING LENGTH LIMITS',
-     &     XLLIM_IN(N),XLLIM_LE(N),XLLIM_TE(N),XLLIM_DN(N)
-           IF(ILOS.GE.100) WRITE(6,*) 
-     &     ' FREE STREAM TURBULENT VISCOSITY RATIO',FSTURB(N),
-     &     ' MIXING PLANE TURBULENCE DECAY', TURBVIS_DAMP(N)
-C
- 2345 CONTINUE
-C
-C******************************************************************************
-C******************************************************************************
-C     READ IN A FACTOR TO INCREASE THE TURBULENT VISCOSITY FOR THE FIRST NMIXUP STEPS.
-C
-           FACMIXUP = 2.0
-           NMIXUP   = 1000
-           READ(5,*, ERR= 2341)    FACMIXUP, NMIXUP
-           IF(FACMIXUP.LT.1.0) FACMIXUP = 1.0
-           IF(IF_RESTART.NE.0)     FACMIXUP = 1.0
- 2341 CONTINUE
-           WRITE(6,*) ' FACMIXUP = ', FACMIXUP,' NMIXUP = ',NMIXUP
-C
-      ENDIF
-C
-C******************************************************************************
-C******************************************************************************
-C     WRITE OUT THE VALUE OF YPLUS AT THE WALL IF YPLUSWALL > 5.0.
-C
-      IF(YPLUSWALL.GT.5.0)  THEN
-         WRITE(6,*)'YPLUSWALL IS BEING USED TO OBTAIN THE SKIN FRICTION'
-         WRITE(6,*)'YPLUS AT THE WALL TAKEN AS, ', YPLUSWALL
-           CFWALL = 1/(YPLUSWALL*YPLUSWALL)
-      ENDIF
-C
-C******************************************************************************
-C******************************************************************************
-C  READ IN THE SURFACE ROUGHNESSES IN MICRONS IF  IF_ROUGH  >  0  .
-C
-      IF(IF_ROUGH.GT.0) THEN
-C
-	WRITE(6,*) ' Non-hydraulic smooth surfaces specified'
-	WRITE(6,*) ' Input Surface Roughness in microns for ALL'
-	WRITE(6,*) ' surfaces.'
-      DO 2347 N = 1,NROWS
-           READ(5,*)  ROUGH_H(N),ROUGH_T(N),ROUGH_L(N),ROUGH_U(N)
-C
-           WRITE(6,*) ' ROW NUMBER ', N
-           WRITE(6,*) ' Surface Roughnesses in microns ',
-     &     ROUGH_H(N),ROUGH_T(N),ROUGH_L(N),ROUGH_U(N)
-C
-C   Change to physical roughness in metres . 
-           ROUGH_H(N) = ROUGH_H(N)*1.0E-06
-           ROUGH_T(N) = ROUGH_T(N)*1.0E-06
-           ROUGH_L(N) = ROUGH_L(N)*1.0E-06
-           ROUGH_U(N) = ROUGH_U(N)*1.0E-06
-C
- 2347 CONTINUE
-C
-      ELSE
-C
-      DO 2348 N = 1,NROWS
-           ROUGH_H(N)  = 0.0
-           ROUGH_T(N)  = 0.0
-           ROUGH_L(N)  = 0.0
-           ROUGH_U(N)  = 0.0
- 2348 CONTINUE
-C
-      END IF
-C
-C**********************************************************************************
-C**********************************************************************************
-C    INPUT THE ARTIFICIAL SPEED OF SOUND IF ITIMST = 5.
-C    THIS SHOULD BE ABOUT HALF THE MAXIMUM RELATIVE VELOCITY IN THE FLOW.
-C
-      IF(ITIMST.GE.5) THEN
-      VSOUND    = 150.
-      RF_PTRU   = 0.01
-      RF_VSOUND = 0.002
-      DENSTY    = 1.20
-      VS_VMAX   = 2.0
-      IF(ITIMST.EQ.5)  READ(5,*,END= 2350)
-     &  VSOUND, RF_PTRU, RF_VSOUND, VS_VMAX
-      IF(ITIMST.EQ.6)  READ(5,*,END= 2350)
-     &  VSOUND, RF_PTRU, RF_VSOUND, VS_VMAX, DENSTY
- 2350 CONTINUE
-         RF_PTRU1    = 1.0 - RF_PTRU
-         RF_VSOUND1  = 1.0 - RF_VSOUND
-         WRITE(6,*)
-         WRITE(6,*) ' CALCULATION USING ARTIFICIAL COMPRESSIBILITY '
-         WRITE(6,*) ' ARTIFICIAL SPEED OF SOUND = ', VSOUND
-         WRITE(6,*) ' DENSITY RELAXATION FACTOR = ', RF_PTRU
-         WRITE(6,*) ' SOUND SPEED RELAXATION FACTOR = ', RF_VSOUND
-         WRITE(6,*) ' RATIO OF SOUND SPEED TO MAXIMUM SPEED = ',VS_VMAX
-         IF(ITIMST.EQ.6) WRITE(6,*) 
-     &   ' INCOMPRESSIBLE FLOW WITH DENSITY = ',DENSTY
-         WRITE(6,*)
-      END IF
-C
-C******************************************************************************
-C******************************************************************************
-C     READ IN THE OPTION TO USE REPEATING FLOW CONDITIONS
-      IF(IF_REPEAT.NE.0) THEN
-           READ(5,*)    NINMOD, RFINBC
-           WRITE(6,*) ' REPEATING STAGE SPECIFIED, NINMOD, RFINBC = ',
-     &                  NINMOD, RFINBC 
-      END IF
-C
-C******************************************************************************
-C******************************************************************************
-C
-C     READ IN THE STAGE NUMBERS AND SORT OUT THE START AND END OF EACH STAGE.
-C     FIRST SET DEFAULTS.
-      DO  N = 1,NROWS
-      NSTAGE(N)    = 1 + (N-1)/2
-      END DO
-C
-C     NOW READ IN THE ACTUAL STAGE NUMBER FOR EACH BLADE ROW.
-C
-      READ(5,*,END=3456,ERR=3456)(NSTAGE(N),N=1,NROWS)
- 3456 CONTINUE
-C
-      WRITE(6,*) ' READ IN THE STAGE NUMBERS FOR EACH BLADE ROW'
-      DO N= 1,NROWS
-           WRITE(6,*) ' ROW NUMBER ',N,'IS IN STAGE NUMBER ',NSTAGE(N)
-      END DO
-C
-C  NOW SET THE START AND END POINTS OF EACH STAGE
-C
-      JSTG_START(1)   = 1
-      NSTAGES         = NSTAGE(NROWS)
-      NSTAGE(NROWS+1) = NSTAGES + 1 
-      JSTART(NROWS+1) = JM +1
-C
-      DO N = 1,NROWS
-      NSTG   = NSTAGE(N)
-      NSTGP1 = NSTAGE(N+1)
-      IF(NSTG.NE.NSTGP1) THEN
-             JSTG_END(NSTG)     = JMIX(N)
-             JSTG_START(NSTGP1) = JSTART(N+1)
-      END IF
-      WRITE(6,*) 'ROW NUMBER ',N,'STAGE NUMBER ',NSTG,'JSTART ',
-     &             JSTART(N),'JEND ',JMIX(N)
-      END DO
-C
-      DO N = 1,NSTAGES
-      WRITE(6,*) ' STAGE NUMBER ',N,' JSTART= ',JSTG_START(N),
-     &           ' JEND = ',JSTG_END(N)
-      END DO 
-C
-C**********************************************************************************
-C**********************************************************************************
-C   INPUT THE FORCING FACTOR AND SMOOTHING FACTOR IF DOING A THROGHFLOW  CALCULATION
-C
-      IF(IM.EQ.2) THEN
-      Q3DFORCE = 1.0
-      SFPBLD   = 0.1
-      NSFPBLD  = 2
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=591) Q3DFORCE, SFPBLD, NSFPBLD
-  591 CONTINUE
-      SFPBLD1 = 1.0 - SFPBLD
-      WRITE(6,*) 'THROUGHFLOW CALCULATION REQUESTED, Q3DFORCE= ',
-     & Q3DFORCE, 'SMOOTHING FACTOR=',SFPBLD,' No OF SMOOTHINGS=',NSFPBLD
-      WRITE(6,*)
-      END IF       
-C
-C******************************************************************************
-C******************************************************************************
-C    INPUT THE RANGE OF YPLUS VALUES OVER WHICH THE TURBULENT VISCOSITY WILL BE REDUCED.
-C
-      IF(ILOS.GT.0) THEN
-           YPLAM    = 5.0
-           YPTURB   = 25.0
-           READ(5,*, ERR= 3458,END = 3458) YPLAM,YPTURB
- 3458 CONTINUE
-           WRITE(6,*) ' TURBULENT VISCOSITY REDUCED OVER THE RANGE YPLUS
-     & = ',YPLAM,' TO',YPTURB
-      END IF
-C
-C******************************************************************************
-C******************************************************************************
-      WRITE(6,*)  ' Subroutine OLD_READIN completed, input data OK'
-C
-C
-      RETURN
-      END
-C
-C*************************************************************************
 C*************************************************************************
 C*************************************************************************
 C*************************************************************************
 C
-      SUBROUTINE LOOP
+      SUBROUTINE LOOP(outputfilebase)
 C
 C      THIS IS THE MAIN TIME STEPPING LOOP. IT IS EXECUTED MANY HUNDREDS OF
 C      TIMES AND USES MOST OF THE CPU TIME. ITS MAIN SUBROUTINE IS 'TSTEP'
@@ -3671,6 +2196,9 @@ C
 C
       DIMENSION CHECK_FLOW(JD),BLADE_FLOW(JD),ROVMSQ(KD),ANG_INC(KD)
       SAVE START,FINI,CHECK_FLOW,BLADE_FLOW
+      INTEGER stringsize 
+      CHARACTER*1024 outputfilebase
+      
 C
 C****************************************************************************** 
 C    SET SOME REFERENCE VALUES
@@ -3768,7 +2296,9 @@ C    CHECK IF A REQUEST TO STOP HAS BEEN RECEIVED BY "stopit" BEING SET
 C    GREATER THAN ZERO.
 C
       IF(MOD(N,10).EQ.0) THEN
-           OPEN(UNIT=12,FILE='stopit')
+            call stripstring(outputfilebase, stringsize)
+            OPEN(UNIT=12, FILE=outputfilebase(1:stringsize)//'_stopit')
+c           OPEN(UNIT=12,FILE='stopit')
            READ(12,*) IFSTOP
            IF(IFSTOP.GE.1) IFEND = 1
            CLOSE(12)
@@ -5316,7 +3846,7 @@ C
       IF(IF_REPEAT.GT.0)     THEN
       IF(MOD(N,NINMOD).EQ.0) THEN
 C
-      CALL MIX_BCONDS(1)
+      CALL MIX_BCONDS(1, outputfilebase)
 C
       CALL NEWBCONDS                 
 C
@@ -5348,7 +3878,7 @@ C      CALL EFICOOL TO PRINT OUT MASS AVERAGED QUANTITIES
 C      AND MACHINE EFFICIENCY AND SHROUD LEAKAGE FLOWS EVERY 200 STEPS.
 C
       IF(MOD(NSTEP,200).EQ.0.OR.IFPRINT.EQ.1.OR.IFEND.EQ.1) THEN
-      CALL EFICOOL(HBLEDTOT)
+      CALL EFICOOL(HBLEDTOT, outputfilebase)
 C
 C******************************************************************************
 C******************************************************************************
@@ -5435,7 +3965,7 @@ C******************************************************************************
 C    CALL MIX_BCONDS TO WRITE OUT THE PITCHWISE AVERAGE VALUES AT THE MIXING PLANES.
 C
       IF(IFEND.EQ.1) THEN
-      CALL MIX_BCONDS(1)
+      CALL MIX_BCONDS(1, outputfilebase)
       END IF
 C
 C*******************************************************************************
@@ -6270,7 +4800,7 @@ C
 C******************************************************************************
 C******************************************************************************
 C
-      SUBROUTINE SETUP(ANSIN)
+      SUBROUTINE SETUP(ANSIN, outputfilebase)
 C
 C**********THIS SUBROUTINE SETS UP THE GRID AND INITIALISES ALL THE
 C          VARIABLES USED IN THE MAIN PROGRAM.
@@ -6281,6 +4811,8 @@ C
      &          INDLETE(JD)
 C
       CHARACTER*1 ANSW,ANSIN
+      INTEGER stringsize
+      CHARACTER*1024 outputfilebase
 C
 C      SET VARIOUS CONSTANTS AND INTEGERS NEEDED THROUGHOUT THE CALCULATION
 C
@@ -6575,7 +5107,12 @@ C******************************************************************************
 C******************************************************************************
 C     WRITE THE GRID GEOMETRY TO UNIT 21 FOR USE WHEN PLOTTING
 C
-      OPEN(UNIT=21,FILE='grid_out',form= 'unformatted' )
+
+C     This could be kept but means that it will output data to current working directory ??? PJE
+c      OPEN(UNIT=21,FILE='grid_out',form= 'unformatted' )
+      call stripstring(outputfilebase, stringsize)
+      OPEN(UNIT=21,FILE=outputfilebase(1:stringsize)//'_grid_out',
+     &form= 'unformatted' )
 C
       WRITE(21) NSTEPS_MAX
       WRITE(21) IM,JM,KM
@@ -9565,11 +8102,11 @@ C      WILL TEND TO BE SMALL.
 C
 C       UPF(NUP) IS NOT USED AS THERE ARE NUP-1 INTERVALS BETWEEN NUP POINTS
 C
-      READ(5,*)     DUMMY_INPUT
+      READ(15,*)     DUMMY_INPUT
       WRITE(6,*)    DUMMY_INPUT
       WRITE(6,*) 'STARTING TO GENERATE A NEW GRID IN SUBROUTINE NEWGRID'
 C
-      READ(5,*)     NUP,NON,NDOWN
+      READ(15,*)     NUP,NON,NDOWN
       WRITE(6,1600) NUP,NON,NDOWN
  1600 FORMAT('  NUP, NON, NDOWN = ',3I10)
 C
@@ -9584,11 +8121,11 @@ C******************************************************************************
 C******************************************************************************
 C
       IF(NUP.EQ.0) THEN
-           READ(5,*) NUP
+           READ(15,*) NUP
            NINUP = 0
  880       CONTINUE
            NINUP = NINUP+1
-           READ(5,*) XFRACUP(NINUP),RELSPUP(NINUP)
+           READ(15,*) XFRACUP(NINUP),RELSPUP(NINUP)
            IF(XFRACUP(NINUP).GT.0.9999) GO TO 881
            GO TO 880
  881       CONTINUE
@@ -9598,16 +8135,16 @@ C
  886       CONTINUE
 C
       ELSE
-           READ(5,*)     (UPF(J),J=1,NUP)
+           READ(15,*)     (UPF(J),J=1,NUP)
       ENDIF
 C
 C******************************************************************************
       IF(NON.EQ.0) THEN
-           READ(5,*) NON
+           READ(15,*) NON
            NINON = 0
  882       CONTINUE
            NINON = NINON+1
-           READ(5,*) XFRACON(NINON),RELSPON(NINON)
+           READ(15,*) XFRACON(NINON),RELSPON(NINON)
            IF(XFRACON(NINON).GT.0.9999) GO TO 883
            GO TO 882
  883       CONTINUE
@@ -9617,16 +8154,16 @@ C******************************************************************************
  887  CONTI   NUE
 C
       ELSE
-           READ(5,*)     (ONF(J),J=1,NON)
+           READ(15,*)     (ONF(J),J=1,NON)
       ENDIF
 C
 C******************************************************************************
       IF(NDOWN.EQ.0) THEN
-           READ(5,*) NDOWN
+           READ(15,*) NDOWN
            NINDWN = 0
  884       CONTINUE
            NINDWN = NINDWN+1
-           READ(5,*) XFRACDWN(NINDWN),RELSPDWN(NINDWN)
+           READ(15,*) XFRACDWN(NINDWN),RELSPDWN(NINDWN)
            IF(XFRACDWN(NINDWN).GT.0.9999) GO TO 885
            GO TO 884
  885       CONTINUE
@@ -9636,7 +8173,7 @@ C******************************************************************************
  888       CONTINUE
 C
       ELSE
-           READ(5,*)     (DOWNF(J),J=1,NDOWN)
+           READ(15,*)     (DOWNF(J),J=1,NDOWN)
       ENDIF
 C
 C******************************************************************************
@@ -9653,7 +8190,7 @@ C      READ THE CHANGE IN THE UPSTREAM AND DOWNSTREAM EXTENT OF THE GRID
 C      THESE MULTIPLY THE ORIGINAL UPSTREAM AND DOWNSTREAM
 C      LENGTHS OF THE GRID BY UPEXT AND DWNEXT.
 C
-      READ(5,*)     UPEXT,DWNEXT
+      READ(15,*)     UPEXT,DWNEXT
       WRITE(6,1704) UPEXT,DWNEXT
 C
 C     END OF INPUT DATA FOR GENERATING THE NEW GRID
@@ -9923,13 +8460,13 @@ C
 C 
       WRITE(6,*)
       WRITE(6,*)'SHROUD LEAKAGE DATA FOR ROW NUMBER', NR
-      READ(5,*)  KSHROUD(NR),JLEAKS(NR),JLEAKE(NR),JLKINS(NR),JLKINE(NR)
+      READ(15,*) KSHROUD(NR),JLEAKS(NR),JLEAKE(NR),JLKINS(NR),JLKINE(NR)
       WRITE(6,*)'KSHROUD, JLEAKS, JLEAKE, JLEAKINS, JLEAKINE',
      &           KSHROUD(NR),JLEAKS(NR),JLEAKE(NR),JLKINS(NR),JLKINE(NR) 
-      READ(5,*)  SEALGAP(NR),NSEAL(NR),CFSHROUD(NR),CFCASING(NR)
+      READ(15,*)  SEALGAP(NR),NSEAL(NR),CFSHROUD(NR),CFCASING(NR)
       WRITE(6,*)'SEALGAP, NSEAL, CFSHROUD, CFCASING',
      &           SEALGAP(NR),NSEAL(NR),CFSHROUD(NR),CFCASING(NR)
-      READ(5,*)  WCASE(NR),PITCHIN(NR)
+      READ(15,*)  WCASE(NR),PITCHIN(NR)
       WRITE(6,*)'RPM CASING, INLET PITCH ANGLE', WCASE(NR),PITCHIN(NR)
       WRITE(6,*)
 C
@@ -10260,10 +8797,10 @@ C
       J1      =  JSTART(N_ROW)
 C
       WRITE(6,*) ' READING THE COOLING FLOW DATA ROW No.', N_ROW
-      READ(5,99)  DUMMY_INPUT
+      READ(15,99)  DUMMY_INPUT
       WRITE(6,99) DUMMY_INPUT
 C
-      READ(5,*)  NCWLBLADE, NCWLWALL
+      READ(15,*)  NCWLBLADE, NCWLWALL
       WRITE(6,*) NCWLBLADE, NCWLWALL
 C
       IF(NCWLBLADE.EQ.0.AND.NCWLWALL.EQ.0) GO TO 100
@@ -10275,13 +8812,13 @@ C
       IF(NCWLBLADE.NE.0) THEN
 C
       WRITE(6,*) ' BLADE SURFACE COOLING DATA '
-      READ(5,99)  DUMMY_INPUT
+      READ(15,99)  DUMMY_INPUT
       WRITE(6,99) DUMMY_INPUT
 C
       DO 200 NBSURF = NCWLBLADEP+1,NCOOLB
-      READ(5,*)  IC(NBSURF),JCBS(NBSURF),JCBE(NBSURF),KCBS(NBSURF),
+      READ(15,*)  IC(NBSURF),JCBS(NBSURF),JCBE(NBSURF),KCBS(NBSURF),
      &           KCBE(NBSURF)
-      READ(5,*)  CFLOWB(NBSURF),TOCOOLB(NBSURF),POCOOLB(NBSURF),
+      READ(15,*)  CFLOWB(NBSURF),TOCOOLB(NBSURF),POCOOLB(NBSURF),
      &           MACHCOOL(NBSURF),SANGLEB(NBSURF),XANGLEB(NBSURF),
      &           RVT_IN_B(NBSURF),RPM_COOL
       WRITE(6,*) IC(NBSURF),JCBS(NBSURF),JCBE(NBSURF),KCBS(NBSURF),
@@ -10330,13 +8867,13 @@ C
       IF(NCWLWALL.NE.0) THEN
 C
       WRITE(6,*) ' WALL COOLING DATA '
-      READ(5,99)  DUMMY_INPUT
+      READ(15,99)  DUMMY_INPUT
       WRITE(6,99) DUMMY_INPUT
 C
       DO 300 NWSURF = NCWLWALLP+1,NCOOLW
-      READ(5,*)  KC(NWSURF),JCWS(NWSURF),JCWE(NWSURF),ICWS(NWSURF),
+      READ(15,*)  KC(NWSURF),JCWS(NWSURF),JCWE(NWSURF),ICWS(NWSURF),
      &           ICWE(NWSURF)
-      READ(5,*)  CFLOWW(NWSURF),TOCOOLW(NWSURF),POCOOLW(NWSURF),
+      READ(15,*)  CFLOWW(NWSURF),TOCOOLW(NWSURF),POCOOLW(NWSURF),
      &           MACHCOOL(NWSURF),SANGLEW(NWSURF),TANGLEW(NWSURF),
      &           RVT_IN_W(NWSURF),RPM_COOL
       WRITE(6,*) KC(NWSURF),JCWS(NWSURF),JCWE(NWSURF),ICWS(NWSURF),
@@ -10678,16 +9215,16 @@ C
       DO 100 N_ROW = 1,NROWS
 C
       J1 = JSTART(N_ROW)
-      READ(5,99)  DUMMY_INPUT
+      READ(15,99)  DUMMY_INPUT
       WRITE(6,99) DUMMY_INPUT
-      READ(5,*)   NBLEED
+      READ(15,*)   NBLEED
 C
 C    READ IN THE BLEED FLOW DETAILS. THE J VALUES IN THE INPUT ARE
 C    DEFINED FOR THE CURRENT BLADE ROW. IE J = 1 AT THE UPSTREAM MIXING PLANE.
 C
       DO 10 NBLD =1,NBLEED
       NBLEEDTOT = NBLEEDTOT + 1
-      READ(5,*) IBLDS,IBLDE,JBLDS,JBLDE,KBLDS,KBLDE,MASSBLED
+      READ(15,*) IBLDS,IBLDE,JBLDS,JBLDE,KBLDS,KBLDE,MASSBLED
       KBLEEDS(NBLEEDTOT)  = KBLDS
       KBLEEDE(NBLEEDTOT)  = KBLDE
       IBLEEDS(NBLEEDTOT)  = IBLDS
@@ -10792,7 +9329,7 @@ C
 C
 C**********************************************************************
 C
-      SUBROUTINE EFICOOL(HBLEDTOT)
+      SUBROUTINE EFICOOL(HBLEDTOT, outputfilebase)
 C
 C     THIS SUBROUTINE CALCULATES THE MASS AVERAGED QUANTITIES AND MACHINE
 C     EFFICIENCY AND WRITES THEM OUT TO UNIT 6.
@@ -10805,6 +9342,8 @@ C
       DIMENSION BLADE_FLOW(JD),SUM_ENTPY(JD),SUMPO(JD),SUMTO(JD),
      &          SUMRVT(JD),SUMTSTAT(JD), ETA_LOSS(JD),SUMPSTAT(JD),
      &          CHECK_FLOW(JD)
+      INTEGER stringsize
+      CHARACTER*1024 outputfilebase
 C
 C      SUM FLUXES OF MASS,STAGNATION PRESURE  ETC EVERY 100 TIME STEPS
 C
@@ -10920,7 +9459,9 @@ C ********************************************************
 C    WRITE A FILE TO PLOT THE ENTROPY LOSS COEFFICIENT OR LOST EFFICIENCY'
 C  
       IF(IFEND.EQ.1) THEN   
-      OPEN(UNIT=23,FILE='loss-co.plt')
+c      OPEN(UNIT=23,FILE='loss-co.plt')
+      call stripstring(outputfilebase,stringsize)
+      OPEN(UNIT=23,FILE=outputfilebase(1:stringsize)//'_loss-co.plt')
       WRITE(23,*) ' PLOTTING OUTPUT FOR LOST EFFICIENCY '
       WRITE(23,*) ' NUMBER OF OUTPUT POINTS ', JM
       WRITE(23,*) ' MERIDIONAL DISTANCE '
@@ -11892,8 +10433,8 @@ C
 C
       ROTATE     = 0.0
       FRACX_ROT  = 0.5
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=1502) ROTATE, FRACX_ROT
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=1502) ROTATE, FRACX_ROT
  1502 CONTINUE
       WRITE(6,*) ' INPUT FOR RESTAGGERING OPTION'
       WRITE(6,*) ' ROTATION =', ROTATE, 'ABOUT ',FRACX_ROT 
@@ -11981,10 +10522,10 @@ C     LEAN THE BLADE BY ANGLEAN IF IF_LEAN IS GREATER THAN ZERO.
 C     IF "ANGLEAN" IS POSITIVE THE HUB IS HELD FIXED AND THE OTHER SECTIONS ARE 
 C     MOVED IN THE POSITIVE THETA DIRECTION .
 C
-      READ(5,*) DUMMY_INPUT
+      READ(15,*) DUMMY_INPUT
 C
       ANGLEAN = 0.0
-      READ(5,*,ERR=20) ANGLEAN
+      READ(15,*,ERR=20) ANGLEAN
    20 CONTINUE
 C
       WRITE(6,*) ' LEANING THE BLADE SECTION BY ANGLEAN = ',
@@ -12016,7 +10557,7 @@ C******************************************************************************
 C******************************************************************************
 C******************************************************************************
 C
-      SUBROUTINE MIX_BCONDS(IFOUT)
+      SUBROUTINE MIX_BCONDS(IFOUT, outputfilebase)
 C
 C***********************************************************************
 C     WRITE THE MASS AVERAGE VALUES AT EXIT TO A FILE 'outbconds'
@@ -12025,8 +10566,12 @@ C
       INCLUDE 'commall-open-18.2'
 C
       DIMENSION FAVG(KD)
+      INTEGER stringsize
+      CHARACTER*1024 outputfilebase
+      
 C
-      OPEN(UNIT = 12,FILE ='mixbconds')
+      call stripstring(outputfilebase, stringsize)
+      OPEN(UNIT = 12,FILE =outputfilebase(1:stringsize)//'_mixbconds')
 C
 C     CALCULATE AND WRITE OUT THE EXIT STAGNATION PRESSURE.
 C
@@ -15738,35 +14283,35 @@ C
 C      INPUT THE NEW STREAM SURFACE COORDINATES AND RELATIVE GRID SPACING.
 C      MARK THE POSITION OF THE BLADE LEADING EDGE AND THE TRAILING EDGE.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*) N_SS, N_LE, N_TE
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*) N_SS, N_LE, N_TE
 C
-      READ(5,*)   DUMMY_INPUT
+      READ(15,*)   DUMMY_INPUT
       DO N = 1,N_SS
-      READ(5,*) XSS(N),RSS(N),RELSPACE(N)
+      READ(15,*) XSS(N),RSS(N),RELSPACE(N)
       END DO
 C  
 C
 C   INPUT THE NUMBER OF POINTS AT WHICH A NEW BLADE CAMBER LINE AND THICKNESS WILL DE INPUT.
 C     ALSO THE NUMBER OF TIMES THEY WILL BE SMOOTHED.
 C
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    NNEW, NSMOOTH
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    NNEW, NSMOOTH
       WRITE(6,*)
 C
 C   INPUT THE NEW CAMBER LINE SLOPE AND UPPER AND LOWER TANGENTIAL THICKNESS.
 C   AS FRACTIONS OF THE MERIDIONAL CHORD. 
 C
-      READ(5,*)    DUMMY_INPUT
+      READ(15,*)    DUMMY_INPUT
       DO  NN = 1,NNEW
-      READ(5,*)     FRACNEW(NN),BETANEW(NN),THICKUP(NN),THICKLOW(NN)
+      READ(15,*)     FRACNEW(NN),BETANEW(NN),THICKUP(NN),THICKLOW(NN)
       WRITE(6,*)  ' FRACNEW(NN),BETANEW(NN),THICKUP(NN),THICKLOW(NN) ',
      &              FRACNEW(NN),BETANEW(NN),THICKUP(NN),THICKLOW(NN)
       END DO
       WRITE(6,*)
 C
-      READ(5,*)   DUMMY_INPUT
-      READ(5,*)   FRAC_CHORD_UP, FRAC_CHORD_DWN, RTHETA_MID
+      READ(15,*)   DUMMY_INPUT
+      READ(15,*)   FRAC_CHORD_UP, FRAC_CHORD_DWN, RTHETA_MID
       WRITE(6,*) 'FRAC_CHORD_UP, FRAC_CHORD_DWN, RTHETA_MID',
      &            FRAC_CHORD_UP, FRAC_CHORD_DWN, RTHETA_MID
       WRITE(6,*)
@@ -15940,14 +14485,14 @@ C
 C
       WRITE(6,*) '  INPUTTING THE DATA FOR A Q3D CALCULATION '
       WRITE(6,*)
-      READ(5,*)    DUMMY_INPUT
-      READ(5,*)    Q3DFORCE
+      READ(15,*)    DUMMY_INPUT
+      READ(15,*)    Q3DFORCE
       WRITE(6,*) ' Q3DFORCE = ', Q3DFORCE
-      READ(5,*)    NSS
+      READ(15,*)    NSS
       WRITE(6,*) ' STREAM SURFACE DATA '
-      READ(5,*)   (FRACSS(N), N=1,NSS)
+      READ(15,*)   (FRACSS(N), N=1,NSS)
       WRITE(6,*)  'FRACSS',( FRACSS(N), N=1,NSS)
-      READ(5,*)   (TKSS(N),N=1,NSS)
+      READ(15,*)   (TKSS(N),N=1,NSS)
       WRITE(6,*)  '  TKSS',( TKSS(N),N=1,NSS)
       WRITE(6,*)
 C
@@ -16014,8 +14559,8 @@ C
 C
       ROTATE     = 0.0
       FRACX_ROT  = 0.5
-      READ(5,*) DUMMY_INPUT
-      READ(5,*,ERR=1502) ROTATE, FRACX_ROT
+      READ(15,*) DUMMY_INPUT
+      READ(15,*,ERR=1502) ROTATE, FRACX_ROT
  1502 CONTINUE
       WRITE(6,*) ' INPUT FOR RESTAGGERING OPTION'
       WRITE(6,*) ' ROTATION =', ROTATE, 'ABOUT ',FRACX_ROT 
@@ -16226,3 +14771,53 @@ C
       END
 C******************************************************************************
 C****************************************************************************** 
+
+C     **********
+      SUBROUTINE GETCOMMANDLINE(INPUTFILE, OUTPUTFILE)
+
+      IMPLICIT NONE   
+
+      CHARACTER*4096 ARGUMENT
+      INTEGER I, oldI, NUM_ARGS
+      CHARACTER*1024 INPUTFILE, OUTPUTFILE
+
+      NUM_ARGS = 0
+      oldI = 1
+        CALL GETENV("MULTALL_ARGS", ARGUMENT)
+        DO I = 1, LEN(ARGUMENT)
+          IF (ARGUMENT(I:I) == ' ') THEN
+            NUM_ARGS = NUM_ARGS + 1
+            IF (NUM_ARGS == 1) THEN
+                  INPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIF 
+            IF (NUM_ARGS == 2) THEN
+                  OUTPUTFILE = ARGUMENT(oldI:I-1)
+            ENDIf            
+            oldI=I+1
+          END IF
+        ENDDO
+
+      Call stripstring(INPUTFILE, I)
+      PRINT *, "Inputfile ", INPUTFILE(1:I), " will be read"
+      call stripstring(OUTPUTFILE, I)
+      PRINT *, "Outputfile ", OUTPUTFILE(1:I), " will be written to"
+
+      RETURN
+      END
+
+      SUBROUTINE stripstring(string, size)
+
+      implicit NONE
+
+      CHARACTER*1024 string
+      INTEGER size, I
+
+      size=1
+      DO I = 1, LEN(string)
+          IF (string(I:I) == ' ' .AND. size == 1) THEN
+            size=I-1
+          END IF
+      end do
+      
+      return 
+      end
