@@ -14,8 +14,8 @@ from scipy.optimize import minimize
 # In[2]:
 
 
-n_qubits = 3
-layers = 3
+n_qubits = 6
+layers = 6
 device = qml.device("lightning.qubit", wires=n_qubits)
 options = {"maxiter": 100}
 
@@ -131,7 +131,7 @@ def objective_function(params, target, circuit, n_qubits, layers, tracker, verbo
 
     def cost(params):
         angles = target[:,0]
-        angles = np.tile(angles, (3,1))
+        angles = np.tile(angles, (n_qubits,1))
         return np.mean(np.square(circuit(n_qubits, layers, angles, params) - target[:,1]))
 
     # minimize MSE with target dataset
@@ -193,11 +193,12 @@ def params_bounds(params_list):
 
 
 target = np.loadtxt("multall_runs.csv", delimiter=",", usecols=(3,12), skiprows = 1)
-delta = 0.02
-tmin = np.min(target[:,1]) - delta
-tmax = np.max(target[:,1]) + delta
+adelta = 1.5
+tdelta = 5e-4
+tmin = np.min(target[:,1]) - tdelta
+tmax = np.max(target[:,1]) + tdelta
 for ii in range(target.shape[0]):
-    target[ii,0] = linmap(target[ii,0], -20, 20, 0, 2*np.pi)
+    target[ii,0] = linmap(target[ii,0], -20, 20, 0+adelta, 2*np.pi-adelta)
     target[ii,1] = linmap(target[ii,1], tmin, tmax, -1, 1)
 
 
@@ -219,21 +220,21 @@ def new_tracker():
 # set tracker to keep track of results
 tracker = new_tracker()
 init_params = rot_params(n_qubits, layers)
-fcost, fparam, tracker = train(objective_function, init_params, target, circuit, n_qubits, layers, options, tracker, verbose=False)
-np.save("cobyla", fparam)
+#fcost, fparam, tracker = train(objective_function, init_params, target, circuit, n_qubits, layers, options, tracker, verbose=False)
+#np.save("cobyla", fparam)
 
 # In[16]:
 
 
 plt.figure()
 plt.plot(tracker["error"])
-plt.savefig("cobyla.svg")
+#plt.savefig("cobyla.svg")
 
 
 # In[17]:
 
 
-def train_qml(params, target, circuit, n_qubits, layers, options, tracker, verbose=True):
+def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, verbose=True):
     """Function to train VQE"""
     print("Starting the training.")
 
@@ -244,11 +245,9 @@ def train_qml(params, target, circuit, n_qubits, layers, options, tracker, verbo
         print('Param "verbose" set to False. Will not print intermediate steps.')
         print("=" * 80)
 
-    opt = qml.AdamOptimizer()
-
     def cost(params):
         angles = target[:,0]
-        angles = np.tile(angles, (3,1))
+        angles = np.tile(angles, (n_qubits,1))
         return np.mean(np.square(circuit(n_qubits, layers, angles, params) - target[:,1]))
 
     for i in range(options["maxiter"]):
@@ -284,7 +283,8 @@ def train_qml(params, target, circuit, n_qubits, layers, options, tracker, verbo
 
 
 tracker1 = new_tracker()
-fcost1, fparam1, tracker1 = train_qml(init_params, target, circuit, n_qubits, layers, options, tracker1, verbose=False)
+opt = qml.AdamOptimizer(0.1)
+fcost1, fparam1, tracker1 = train_opt(opt, init_params, target, circuit, n_qubits, layers, options, tracker1, verbose=False)
 np.save("adam", fparam1)
 
 # In[19]:
