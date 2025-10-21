@@ -4,12 +4,24 @@
 
 
 # general imports
+import time
+import argparse
 import matplotlib.pyplot as plt
 import pennylane as qml
 from pennylane import numpy as np
 
 from scipy.optimize import minimize
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-i", default="multall_runs.csv")
+parser.add_argument("-o", default=".")
+parser.add_argument("-v", action="store_true")
+
+args = parser.parse_args()
+infile = args.i
+outdir = args.o
+verbose = args.v
 
 # In[2]:
 
@@ -192,14 +204,16 @@ def params_bounds(params_list):
 # In[13]:
 
 
-target = np.loadtxt("multall_runs.csv", delimiter=",", usecols=(3,12), skiprows = 1)
+target = np.loadtxt(infile, delimiter=",", usecols=(3,12), skiprows = 1)
 adelta = 1.5
-tdelta = 5e-4
-tmin = np.min(target[:,1]) - tdelta
-tmax = np.max(target[:,1]) + tdelta
+tdelta = 0.1
+amin = np.min(target[:,0])
+amax = np.max(target[:,0])
+tmin = np.min(target[:,1])
+tmax = np.max(target[:,1])
 for ii in range(target.shape[0]):
-    target[ii,0] = linmap(target[ii,0], -20, 20, 0+adelta, 2*np.pi-adelta)
-    target[ii,1] = linmap(target[ii,1], tmin, tmax, -1, 1)
+    target[ii,0] = linmap(target[ii,0], amin, amax, 0 + adelta, 2*np.pi - adelta)
+    target[ii,1] = linmap(target[ii,1], tmin, tmax, -1 + tdelta, 1 - tdelta)
 
 
 # In[14]:
@@ -210,6 +224,7 @@ def new_tracker():
         "count": 0,  # Elapsed optimization steps
         "error": [],  # Error at each step
         "params": [],  # Track parameters
+        "time": [], # Step time
     }
     return tracker
 
@@ -256,7 +271,9 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
             print("=" * 80)
             print("Iteration step. Cycle:", tracker["count"])
 
+        t1 = time.time()
         params, mse = opt.step_and_cost(cost, params)
+        t2 = time.time()
 
         if verbose:
             print("MSE:", mse)
@@ -264,6 +281,7 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
         # update tracker
         tracker["error"].append(mse)
         tracker["params"].append(params)
+        tracker["time"].append(t2-t1)
 
     # final run
     tracker["error"].append(cost(params))
@@ -284,13 +302,39 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
 
 tracker1 = new_tracker()
 opt = qml.AdamOptimizer(0.1)
-fcost1, fparam1, tracker1 = train_opt(opt, init_params, target, circuit, n_qubits, layers, options, tracker1, verbose=False)
-np.save("adam", fparam1)
+fcost1, fparam1, tracker1 = train_opt(opt, init_params, target[::5, :], circuit, n_qubits, layers, options, tracker1, verbose=verbose)
+np.save(f"{outdir}/adam", fparam1)
 
 # In[19]:
 
 
 plt.figure()
-plt.plot(tracker1["error"])
-plt.savefig("adam.svg")
+color = "b"
+plt.plot(tracker1["error"], color=color)
+plt.xlabel("step")
+plt.ylabel("error")
+plt.yticks(color=color)
+
+plt.twinx()
+color = "r"
+plt.plot(tracker1["time"], color=color)
+plt.ylabel("time")
+plt.yticks(color=color)
+plt.tight_layout()
+plt.savefig(f"{outdir}/adam.svg")
+
+
+# run circuit with final parameters
+angles = np.linspace(0, 2*np.pi, 100)
+angles = np.tile(angles, (n_qubits,1))
+#out = circuit(n_qubits, layers, angles, fparam.reshape(layers, n_qubits, global_rots))
+out1 = circuit(n_qubits, layers, angles, fparam1)
+
+plt.figure()
+#plt.plot(angles[0,:], out)
+plt.plot(angles[0,:], out1)
+plt.plot(target[:,0], target[:,1])
+plt.xlabel("input angle")
+plt.ylabel("output expectation value")
+plt.savefig(f"{outdir}/results.svg")
 
