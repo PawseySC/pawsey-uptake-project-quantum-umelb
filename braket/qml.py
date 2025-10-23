@@ -4,6 +4,9 @@
 
 
 # general imports
+import os
+#os.environ["OMP_NUM_THREADS"] = 16
+
 import time
 import argparse
 import matplotlib.pyplot as plt
@@ -12,6 +15,8 @@ from pennylane import numpy as np
 
 from scipy.optimize import minimize
 
+
+# CLI
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", default="multall_runs.csv")
@@ -23,23 +28,21 @@ infile = args.i
 outdir = args.o
 verbose = args.v
 
-# In[2]:
 
-
+# Circuit parameters
 n_qubits = 6
 layers = 6
-device = qml.device("lightning.qubit", wires=n_qubits)
+device = qml.device("lightning.gpu", wires=n_qubits)
 options = {"maxiter": 100}
 
 
-# In[3]:
-
-
+# Circuit design
 global_rots = 2
 def rotations(wire, params):
     qml.RZ(params[0], wires=wire)
     qml.RY(params[1], wires=wire)
     #qml.RZ(params[2], wires=wire)
+
 
 def entangle(n_qubits):
     if n_qubits <= 1:
@@ -47,17 +50,16 @@ def entangle(n_qubits):
     for ii in range(n_qubits):
         qml.CNOT(wires=[ii, (ii+1) % n_qubits])
 
+
 def training_layer(n_qubits, params):
     for ii in range(n_qubits):
         rotations(ii, params[ii,:])
     entangle(n_qubits)
 
+
 def encoding_layer(n_qubits, params):
     for ii in range(n_qubits):
         qml.RX(params[ii], wires=ii)
-
-
-# In[4]:
 
 
 def enc_params(n_qubits):
@@ -73,9 +75,6 @@ def rot_params(n_qubits, layers):
     return params
 
 
-# In[5]:
-
-
 @qml.qnode(device, diff_method="adjoint")
 def circuit(n_qubits, layers, enc_params, rot_params):
     for ii in range(layers):
@@ -87,15 +86,7 @@ def circuit(n_qubits, layers, enc_params, rot_params):
     return qml.expval(exp)
 
 
-# In[6]:
-
-
-# In[7]:
-
-
-# In[8]:
-
-
+# Process target
 def expectation(probs):
     # use expectation value to predict efficiency
     val = 0
@@ -110,15 +101,38 @@ def expectation(probs):
 def linmap(value, amin, amax, bmin, bmax):
     return bmin + (bmax - bmin)/(amax - amin) * (value - amin)
 
+def polymap(value, amin, amax, bmin, bmax, power=2):
+    m = linmap(value, amin, amax, 0, 1)
+    m = m**power
+    return linmap(m, 0, 1, bmin, bmax)
+
+def expmap(value, amin, amax, bmin, bmax, base=np.exp(1)):
+    m = linmap(value, amin, amax, 0, 1)
+    m = base**m
+    return linmap(m, 1, base, bmin, bmax)
+
 def map_expval(expval, start, stop):
     return linmap(expval, -1, 1, start, stop)
 
+data = np.loadtxt(infile, delimiter=",", usecols=(3,12), skiprows = 1)
+x = range(600, 1300, 5)
+s = (len(x), 3)
+target = np.zeros(s)
 
-# In[9]:
+# target mapping
+adelta = 1
+tdelta = 0.1
+amin = np.min(data[x,0])
+amax = np.max(data[x,0])
+tmin = np.min(data[x,1])
+tmax = np.max(data[x,1])
 
-# In[10]:
+target[:,0] = linmap(data[x,0], amin, amax, 0 + adelta, 2*np.pi - adelta)
+target[:,1] = polymap(data[x,1], tmin, tmax, -1 + tdelta, 1 - tdelta, 5)
+target[:,2] = linmap(data[x,1], tmin, tmax, -1 + tdelta, 1 - tdelta)
 
 
+# classical simulation routines
 def simulate_efficency(params, n_qubits, layers, circuit):
     # classically simulate the circuit
     # set the parameter values using the inputs argument
@@ -128,10 +142,7 @@ def simulate_efficency(params, n_qubits, layers, circuit):
 
     return eff
 
-
-# In[11]:
-
-
+# scipy optimiser
 def objective_function(params, target, circuit, n_qubits, layers, tracker, verbose):
     tracker.update({"count": tracker["count"] + 1})
     if verbose:
@@ -157,9 +168,6 @@ def objective_function(params, target, circuit, n_qubits, layers, tracker, verbo
     tracker["params"].append(params)
 
     return mse
-
-
-# In[12]:
 
 
 def train(func, params, target, circuit, n_qubits, layers, options, tracker, opt_method="cobyla", verbose=True):
@@ -201,24 +209,6 @@ def params_bounds(params_list):
     return [(0, 2 * np.pi) for _ in range(len(params_list))]
 
 
-# In[13]:
-
-
-target = np.loadtxt(infile, delimiter=",", usecols=(3,12), skiprows = 1)
-adelta = 1.5
-tdelta = 0.1
-amin = np.min(target[:,0])
-amax = np.max(target[:,0])
-tmin = np.min(target[:,1])
-tmax = np.max(target[:,1])
-for ii in range(target.shape[0]):
-    target[ii,0] = linmap(target[ii,0], amin, amax, 0 + adelta, 2*np.pi - adelta)
-    target[ii,1] = linmap(target[ii,1], tmin, tmax, -1 + tdelta, 1 - tdelta)
-
-
-# In[14]:
-
-
 def new_tracker():
     tracker = {
         "count": 0,  # Elapsed optimization steps
@@ -229,26 +219,21 @@ def new_tracker():
     return tracker
 
 
-# In[15]:
-
-
-# set tracker to keep track of results
-tracker = new_tracker()
 init_params = rot_params(n_qubits, layers)
-#fcost, fparam, tracker = train(objective_function, init_params, target, circuit, n_qubits, layers, options, tracker, verbose=False)
-#np.save("cobyla", fparam)
-
-# In[16]:
+"""
+#set tracker to keep track of results
+tracker = new_tracker()
+fcost, fparam, tracker = train(objective_function, init_params, target, circuit, n_qubits, layers, options, tracker, verbose=False)
+np.save(f"{outdir}/cobyla", fparam)
 
 
 plt.figure()
 plt.plot(tracker["error"])
-#plt.savefig("cobyla.svg")
+plt.savefig(f"{outdir}/cobyla.svg")
+"""
 
 
-# In[17]:
-
-
+# pennylane optimisers
 def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, verbose=True):
     """Function to train VQE"""
     print("Starting the training.")
@@ -297,15 +282,10 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
     return cost, params, tracker
 
 
-# In[18]:
-
-
 tracker1 = new_tracker()
 opt = qml.AdamOptimizer(0.1)
-fcost1, fparam1, tracker1 = train_opt(opt, init_params, target[::5, :], circuit, n_qubits, layers, options, tracker1, verbose=verbose)
+fcost1, fparam1, tracker1 = train_opt(opt, init_params, target, circuit, n_qubits, layers, options, tracker1, verbose=verbose)
 np.save(f"{outdir}/adam", fparam1)
-
-# In[19]:
 
 
 plt.figure()
