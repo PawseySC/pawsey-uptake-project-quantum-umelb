@@ -2,6 +2,8 @@
 # PennyLane Docker Image for Grace Hopper supercomputer
 
 #docker buildx build --platform linux/arm64 -f pennylane-gh.dockerfile --target wheel-out --build-arg CUDA_VER=12.8.1 --build-arg LIGHTNING_VERSION=v0.43.0 --build-arg PY_VER=3.11 --build-arg PENNYLANE_VERSION=0.43.0 --output type=local,dest=./wheelhouse .
+# or download from quay.io/pawsey/pennylane-gracehopper:0.0.1
+
 ########################################################
 
 # Define global build defaults

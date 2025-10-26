@@ -1,6 +1,7 @@
 # =========================
 # PennyLane Docker Image for Setonix GPU cluster
 # docker buildx build --platform linux/amd64 -f pennylane-setonixgpu.dockerfile --target wheel-out --build-arg PY_VER=3.11 --build-arg LIGHTNING_VERSION=master --build-arg PENNYLANE_VERSION=master --build-arg AMD_ARCH=AMD_GFX90A --build-arg GCC_HOST_VER=11 --output type=local,dest=./wheelhouse . 
+# or download from quay.io/pawsey/pennylane-gracehopper:0.0.1
 # singularity shell -e --rocm pennylane-setonixgpu.sif
 # Build-time arguments (override at build as needed)
 # - PY_VER: choose 3.11 or 3.12 (both supported on Ubuntu 22.04 via deadsnakes)
