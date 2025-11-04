@@ -267,31 +267,34 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
         angles = np.tile(angles, (n_qubits,1))
         return np.mean(np.square(circuit(n_qubits, layers, angles, params) - target[:,1]))
 
-    for i in range(options["maxiter"]):
-        tracker.update({"count": tracker["count"] + 1})
-        if verbose:
-            print("=" * 80)
-            print("Iteration step. Cycle:", tracker["count"])
+    try:
+        for i in range(options["maxiter"]):
+            tracker.update({"count": tracker["count"] + 1})
+            if verbose:
+                print("=" * 80)
+                print("Iteration step. Cycle:", tracker["count"])
 
-        t1 = time.time()
-        params, mse = opt.step_and_cost(cost, params)
-        t2 = time.time()
+            t1 = time.time()
+            params, mse = opt.step_and_cost(cost, params)
+            t2 = time.time()
 
-        mse_delta = tracker["error"][-1] - mse if i > 0 else 1
+            mse_delta = tracker["error"][-1] - mse if i > 0 else 1
 
-        if verbose:
-            print("MSE:", mse)
-            print("MSE delta:", mse_delta)
+            if verbose:
+                print("MSE:", mse)
+                print("MSE delta:", mse_delta)
 
-        # update tracker
-        tracker["error"].append(mse)
-        tracker["params"].append(params)
-        tracker["time"].append(t2-t1)
+            # update tracker
+            tracker["error"].append(mse)
+            tracker["params"].append(params)
+            tracker["time"].append(t2-t1)
 
-        # termination condition
-        if "term" in options and options["term"] > mse:
-            print("Termination condition reached at step:", i)
-            break
+            # termination condition
+            if "term" in options and options["term"] > mse:
+                print("Termination condition reached at step:", i)
+                break
+    except KeyboardInterrupt:
+        print("Keyboard interrupt, stopping training")
 
     # final run
     tracker["error"].append(cost(params))
