@@ -5,7 +5,7 @@
 
 # general imports
 import os
-#os.environ["OMP_NUM_THREADS"] = 16
+os.environ["OMP_NUM_THREADS"] = "8"
 
 import time
 import argparse
@@ -19,6 +19,10 @@ from scipy.optimize import minimize
 # CLI
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-q", type=int, metavar="#qubits")
+parser.add_argument("-l", type=int, metavar="#layers")
+parser.add_argument("-r", type=int, metavar="#rotations")
+parser.add_argument("-d", choices=["cpu", "gpu"], default="gpu", metavar="device")
 parser.add_argument("-i", default="multall_runs.csv")
 parser.add_argument("-o", default=".")
 parser.add_argument("-v", action="store_true")
@@ -30,18 +34,29 @@ verbose = args.v
 
 
 # Circuit parameters
-n_qubits = 6
-layers = 6
-device = qml.device("lightning.gpu", wires=n_qubits)
-options = {"maxiter": 100}
+n_qubits = args.q
+layers = args.l
+global_rots = args.r
+
+if args.d == "cpu":
+    device = qml.device("lightning.qubit", wires=n_qubits)
+elif args.d == "gpu":
+    device = qml.device("lightning.gpu", wires=n_qubits)
+else:
+    raise Error(f"Unknown device, got {args.d}")
+
+options = {"maxiter": 300, "term": 1e-2}
 
 
 # Circuit design
-global_rots = 2
+if global_rots not in [2, 3]:
+    raise Error(f"global rotations must be 2 or 3, got {global_rots}")
+
 def rotations(wire, params):
     qml.RZ(params[0], wires=wire)
     qml.RY(params[1], wires=wire)
-    #qml.RZ(params[2], wires=wire)
+    if global_rots == 3:
+        qml.RZ(params[2], wires=wire)
 
 
 def entangle(n_qubits):
@@ -115,7 +130,7 @@ def map_expval(expval, start, stop):
     return linmap(expval, -1, 1, start, stop)
 
 data = np.loadtxt(infile, delimiter=",", usecols=(3,12), skiprows = 1)
-x = range(600, 1300, 5)
+x = range(0, data.shape[0], 5)
 s = (len(x), 3)
 target = np.zeros(s)
 
@@ -128,7 +143,7 @@ tmin = np.min(data[x,1])
 tmax = np.max(data[x,1])
 
 target[:,0] = linmap(data[x,0], amin, amax, 0 + adelta, 2*np.pi - adelta)
-target[:,1] = polymap(data[x,1], tmin, tmax, -1 + tdelta, 1 - tdelta, 5)
+target[:,1] = polymap(data[x,1], tmin, tmax, -1 + tdelta, 1 - tdelta, 50)
 target[:,2] = linmap(data[x,1], tmin, tmax, -1 + tdelta, 1 - tdelta)
 
 
@@ -239,7 +254,9 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
     print("Starting the training.")
 
     print("=" * 80)
-    print(f"OPTIMIZATION for {n_qubits} qubits, {layers} layers")
+    print(f"OPTIMIZATION for {n_qubits} qubits, {layers} layers, {global_rots} rotations per set")
+    if "term" in options:
+        print(f"Termination condition:", options["term"])
 
     if not verbose:
         print('Param "verbose" set to False. Will not print intermediate steps.')
@@ -260,13 +277,21 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
         params, mse = opt.step_and_cost(cost, params)
         t2 = time.time()
 
+        mse_delta = tracker["error"][-1] - mse if i > 0 else 1
+
         if verbose:
             print("MSE:", mse)
+            print("MSE delta:", mse_delta)
 
         # update tracker
         tracker["error"].append(mse)
         tracker["params"].append(params)
         tracker["time"].append(t2-t1)
+
+        # termination condition
+        if "term" in options and options["term"] > mse:
+            print("Termination condition reached at step:", i)
+            break
 
     # final run
     tracker["error"].append(cost(params))
