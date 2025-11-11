@@ -45,7 +45,7 @@ elif args.d == "gpu":
 else:
     raise Error(f"Unknown device, got {args.d}")
 
-options = {"maxiter": 300, "term": 1e-2}
+options = {"maxiter": 300, "term": 1e-3}
 
 
 # Circuit design
@@ -136,7 +136,7 @@ target = np.zeros(s)
 
 # target mapping
 adelta = 1
-tdelta = 0.1
+tdelta = 0.3
 amin = np.min(data[x,0])
 amax = np.max(data[x,0])
 tmin = np.min(data[x,1])
@@ -254,7 +254,7 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
     print("Starting the training.")
 
     print("=" * 80)
-    print(f"OPTIMIZATION for {n_qubits} qubits, {layers} layers, {global_rots} rotations per set")
+    print(f"OPTIMIZATION on {args.d} for {n_qubits} qubits, {layers} layers, {global_rots} rotations per set")
     if "term" in options:
         print(f"Termination condition:", options["term"])
 
@@ -283,6 +283,7 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
             if verbose:
                 print("MSE:", mse)
                 print("MSE delta:", mse_delta)
+                print("time:", t2-t1)
 
             # update tracker
             tracker["error"].append(mse)
