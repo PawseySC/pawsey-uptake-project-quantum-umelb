@@ -43,14 +43,14 @@ if args.d == "cpu":
 elif args.d == "gpu":
     device = qml.device("lightning.gpu", wires=n_qubits)
 else:
-    raise Error(f"Unknown device, got {args.d}")
+    raise Exception(f"Unknown device, got {args.d}")
 
-options = {"maxiter": 300, "term": 1e-3}
+options = {"maxiter": 500, "term": 1e-5}
 
 
 # Circuit design
 if global_rots not in [2, 3]:
-    raise Error(f"global rotations must be 2 or 3, got {global_rots}")
+    raise Exception(f"global rotations must be 2 or 3, got {global_rots}")
 
 def rotations(wire, params):
     qml.RZ(params[0], wires=wire)
@@ -315,6 +315,7 @@ tracker1 = new_tracker()
 opt = qml.AdamOptimizer(0.1)
 fcost1, fparam1, tracker1 = train_opt(opt, init_params, target, circuit, n_qubits, layers, options, tracker1, verbose=verbose)
 np.save(f"{outdir}/adam", fparam1)
+np.save(f"{outdir}/error", np.asarray(tracker1["error"]))
 
 
 plt.figure()
@@ -345,5 +346,13 @@ plt.plot(angles[0,:], out1)
 plt.plot(target[:,0], target[:,1])
 plt.xlabel("input angle")
 plt.ylabel("output expectation value")
+
+plt.twinx()
+color = "r"
+dout1 = circuit(n_qubits, layers, np.tile(target[:,0], (n_qubits, 1)), fparam1) - target[:,1]
+plt.plot(target[:,0], dout1, color=color)
+plt.ylabel("MSE difference")
+plt.yticks(color=color)
+plt.tight_layout()
 plt.savefig(f"{outdir}/results.svg")
 
