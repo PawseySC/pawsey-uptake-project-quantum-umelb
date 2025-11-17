@@ -227,7 +227,7 @@ def params_bounds(params_list):
 def new_tracker():
     tracker = {
         "count": 0,  # Elapsed optimization steps
-        "error": [],  # Error at each step
+        "cost": [],  # Cost at each step
         "params": [],  # Track parameters
         "time": [], # Step time
     }
@@ -256,16 +256,18 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
     print("=" * 80)
     print(f"OPTIMIZATION on {args.d} for {n_qubits} qubits, {layers} layers, {global_rots} rotations per set")
     if "term" in options:
-        print(f"Termination condition:", options["term"])
+        print("Termination condition:", options["term"])
 
     if not verbose:
         print('Param "verbose" set to False. Will not print intermediate steps.')
         print("=" * 80)
 
-    def cost(params):
+    def objective(params):
         angles = target[:,0]
         angles = np.tile(angles, (n_qubits,1))
-        return np.mean(np.square(circuit(n_qubits, layers, angles, params) - target[:,1]))
+        a = np.clip(circuit(n_qubits, layers, angles, params), -0.5, np.inf)
+        b = np.clip(target[:,1], -0.5, np.inf)
+        return np.mean(np.square(a - b))
 
     try:
         for i in range(options["maxiter"]):
@@ -275,34 +277,34 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
                 print("Iteration step. Cycle:", tracker["count"])
 
             t1 = time.time()
-            params, mse = opt.step_and_cost(cost, params)
+            params, cost = opt.step_and_cost(objective, params)
             t2 = time.time()
 
-            mse_delta = tracker["error"][-1] - mse if i > 0 else 1
+            cost_delta = tracker["cost"][-1] - cost if i > 0 else 1
 
             if verbose:
-                print("MSE:", mse)
-                print("MSE delta:", mse_delta)
+                print("cost:", cost)
+                print("cost delta:", cost_delta)
                 print("time:", t2-t1)
 
             # update tracker
-            tracker["error"].append(mse)
+            tracker["cost"].append(cost)
             tracker["params"].append(params)
             tracker["time"].append(t2-t1)
 
             # termination condition
-            if "term" in options and options["term"] > mse:
+            if "term" in options and options["term"] > cost:
                 print("Termination condition reached at step:", i)
                 break
     except KeyboardInterrupt:
         print("Keyboard interrupt, stopping training")
 
     # final run
-    tracker["error"].append(cost(params))
+    tracker["cost"].append(objective(params))
     tracker["params"].append(params)
 
-    minid = np.argmin(tracker["error"], requires_grad=False)
-    cost = tracker["error"][minid]
+    minid = np.argmin(tracker["cost"], requires_grad=False)
+    cost = tracker["cost"][minid]
     params = tracker["params"][minid]
     print("Final cost:", cost)
     print("Final angles:", params)
@@ -315,14 +317,14 @@ tracker1 = new_tracker()
 opt = qml.AdamOptimizer(0.1)
 fcost1, fparam1, tracker1 = train_opt(opt, init_params, target, circuit, n_qubits, layers, options, tracker1, verbose=verbose)
 np.save(f"{outdir}/adam", fparam1)
-np.save(f"{outdir}/error", np.asarray(tracker1["error"]))
+np.save(f"{outdir}/cost", np.asarray(tracker1["cost"]))
 
 
 plt.figure()
 color = "b"
-plt.plot(tracker1["error"], color=color)
+plt.plot(tracker1["cost"], color=color)
 plt.xlabel("step")
-plt.ylabel("error")
+plt.ylabel("cost")
 plt.yticks(color=color)
 
 plt.twinx()
@@ -347,11 +349,15 @@ plt.plot(target[:,0], target[:,1])
 plt.xlabel("input angle")
 plt.ylabel("output expectation value")
 
+# plot differences
+angles = target[:,0]
+angles = np.tile(angles, (n_qubits,1))
+a = np.clip(circuit(n_qubits, layers, angles, fparam1), -0.5, np.inf)
+b = np.clip(target[:,1], -0.5, np.inf)
 plt.twinx()
 color = "r"
-dout1 = circuit(n_qubits, layers, np.tile(target[:,0], (n_qubits, 1)), fparam1) - target[:,1]
-plt.plot(target[:,0], dout1, color=color)
-plt.ylabel("MSE difference")
+plt.plot(target[:,0], a-b, color=color, alpha=0.5)
+plt.ylabel("error difference")
 plt.yticks(color=color)
 plt.tight_layout()
 plt.savefig(f"{outdir}/results.svg")
