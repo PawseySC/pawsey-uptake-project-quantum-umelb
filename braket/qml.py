@@ -22,7 +22,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-q", type=int, metavar="#qubits")
 parser.add_argument("-l", type=int, metavar="#layers")
 parser.add_argument("-r", type=int, metavar="#rotations")
+parser.add_argument("-e", action="store_true") # reencode
 parser.add_argument("-d", choices=["cpu", "gpu"], default="gpu", metavar="device")
+parser.add_argument("-m", type=int, default=100, metavar="maxiter")
+parser.add_argument("-t", type=float, default=1e-4, metavar="tolerance")
 parser.add_argument("-i", default="multall_runs.csv")
 parser.add_argument("-o", default=".")
 parser.add_argument("-v", action="store_true")
@@ -45,7 +48,7 @@ elif args.d == "gpu":
 else:
     raise Exception(f"Unknown device, got {args.d}")
 
-options = {"maxiter": 500, "term": 1e-5}
+options = {"maxiter": args.m, "term": args.t}
 
 
 # Circuit design
@@ -92,8 +95,11 @@ def rot_params(n_qubits, layers):
 
 @qml.qnode(device, diff_method="adjoint")
 def circuit(n_qubits, layers, enc_params, rot_params):
-    for ii in range(layers):
+    if not args.e:
         encoding_layer(n_qubits, enc_params)
+    for ii in range(layers):
+        if args.e:
+            encoding_layer(n_qubits, enc_params)
         training_layer(n_qubits, rot_params[ii])
     exp = qml.PauliZ(0)
     for ii in range(1, n_qubits):
@@ -255,8 +261,13 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
 
     print("=" * 80)
     print(f"OPTIMIZATION on {args.d} for {n_qubits} qubits, {layers} layers, {global_rots} rotations per set")
+    if "maxiter" in options:
+        print("Maximum iterations:", options["maxiter"])
     if "term" in options:
         print("Termination condition:", options["term"])
+
+    print("Circuit configuration")
+    print(qml.draw(circuit, max_length=140)(3, 2, [0, 0, 0], np.zeros((2,3,global_rots))))
 
     if not verbose:
         print('Param "verbose" set to False. Will not print intermediate steps.')
