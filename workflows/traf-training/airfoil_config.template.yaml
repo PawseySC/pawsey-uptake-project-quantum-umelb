@@ -1,0 +1,43 @@
+# airfoil_config.yaml
+camber_line:
+  control_points_params:
+    P1_k_factor: 0.4 # range of 0.2 to 0.8
+    P2_x: 0.5 # range of 0.25 to 0.7
+    P2_y: 0.05 # range of 0.025 to 0.1
+    P3_k_factor: -0.25 # range of -0.5 to 0
+  inlet_angle_deg: 45 # range of 20 to 70
+  outlet_angle_deg: -50 # range of -70 to -20
+  stagger_angle_deg: -25
+
+top_thickness:
+  control_points_params:
+    P1_k_factor: 0.2
+    P2_x: 0.1
+    P2_y: 0.03
+    P3_k_factor: 0
+  inlet_angle_deg: TOP_INLET_ANGLE
+  outlet_angle_deg: TOP_OUTLET_ANGLE
+  le_y_thickness: 0.02 # Y-coordinate of P0 for thickness curve (half-thickness at LE)
+  p4_y: 0.01           # Y-coordinate of P4 for thickness curve (half-thickness at TE) likely the trailing edge has to have some finite thickness
+
+bottom_thickness:
+  control_points_params:
+    P1_k_factor: 0.2 # range of 0.1 to 0.4
+    P2_x: 0.1 # range of 0.05 to 0.3
+    P2_y: 0.03 # range of 0.01 to 0.05
+    P3_k_factor: 0
+  inlet_angle_deg: BOTTOM_INLET_ANGLE
+  outlet_angle_deg: BOTTOM_OUTLET_ANGLE
+  le_y_thickness: 0.02 # Y-coordinate of P0 for thickness curve (half-thickness at LE)
+  p4_y: 0.01           # Y-coordinate of P4 for thickness curve (half-thickness at TE)
+
+output_settings:
+  output_airfoil_filename: AIRFOIL_FILENAME #"generated_airfoil.dat"
+  output_camber_filename: None #"generated_camber_line.txt"
+  output_top_thickness_filename: None #"generated_top_thickness.txt"
+  output_bottom_thickness_filename: None #"generated_bottom_thickness.txt"
+  plot_title: "Generated Airfoil Shape"
+  num_points_on_curve: 1000 # Number of points for main Bezier curves
+  num_points_on_arc: 50    # Number of points for LE/TE arcs
+  chord_length_for_export: 50.0 # Desired chord length when exporting to .dat
+
