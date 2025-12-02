@@ -26,11 +26,14 @@ parser.add_argument("-e", action="store_true") # reencode
 parser.add_argument("-d", choices=["cpu", "gpu"], default="gpu", metavar="device")
 parser.add_argument("-m", type=int, default=100, metavar="maxiter")
 parser.add_argument("-t", type=float, default=1e-4, metavar="tolerance")
+parser.add_argument("-g", type=float, default=1e-3, metavar="gradient tolerance")
 parser.add_argument("-i", default="multall_runs.csv")
 parser.add_argument("-o", default=".")
 parser.add_argument("-v", action="store_true")
 
 args = parser.parse_args()
+print("Arguments", args)
+
 infile = args.i
 outdir = args.o
 verbose = args.v
@@ -40,6 +43,8 @@ verbose = args.v
 n_qubits = args.q
 layers = args.l
 global_rots = args.r
+reencode = args.e
+enc_layers = [0]
 
 if args.d == "cpu":
     device = qml.device("lightning.qubit", wires=n_qubits)
@@ -48,7 +53,7 @@ elif args.d == "gpu":
 else:
     raise Exception(f"Unknown device, got {args.d}")
 
-options = {"maxiter": args.m, "term": args.t}
+options = {"maxiter": args.m, "term": args.t, "grad_term": args.g}
 
 
 # Circuit design
@@ -94,11 +99,9 @@ def rot_params(n_qubits, layers):
 
 
 @qml.qnode(device, diff_method="adjoint")
-def circuit(n_qubits, layers, enc_params, rot_params):
-    if not args.e:
-        encoding_layer(n_qubits, enc_params)
+def circuit(n_qubits, layers, enc_params, rot_params, enc_layers):
     for ii in range(layers):
-        if args.e:
+        if ii in enc_layers:
             encoding_layer(n_qubits, enc_params)
         training_layer(n_qubits, rot_params[ii])
     exp = qml.PauliZ(0)
@@ -236,6 +239,7 @@ def new_tracker():
         "cost": [],  # Cost at each step
         "params": [],  # Track parameters
         "time": [], # Step time
+        "restart_step": 0
     }
     return tracker
 
@@ -255,19 +259,21 @@ plt.savefig(f"{outdir}/cobyla.svg")
 
 
 # pennylane optimisers
-def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, verbose=True):
+def train_opt(opt, params, target, circuit, n_qubits, layers, enc_layers, options, tracker, verbose=True):
     """Function to train VQE"""
     print("Starting the training.")
 
     print("=" * 80)
     print(f"OPTIMIZATION on {args.d} for {n_qubits} qubits, {layers} layers, {global_rots} rotations per set")
+    print(f"Encoding layers {enc_layers}")
+
     if "maxiter" in options:
         print("Maximum iterations:", options["maxiter"])
     if "term" in options:
         print("Termination condition:", options["term"])
 
     print("Circuit configuration")
-    print(qml.draw(circuit, max_length=140)(3, 2, [0, 0, 0], np.zeros((2,3,global_rots))))
+    print(qml.draw(circuit, max_length=140)(3, 2, [0, 0, 0], np.zeros((2,3,global_rots)), [0]))
 
     if not verbose:
         print('Param "verbose" set to False. Will not print intermediate steps.')
@@ -276,7 +282,7 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
     def objective(params):
         angles = target[:,0]
         angles = np.tile(angles, (n_qubits,1))
-        a = np.clip(circuit(n_qubits, layers, angles, params), -0.5, np.inf)
+        a = np.clip(circuit(n_qubits, layers, angles, params, enc_layers), -0.5, np.inf)
         b = np.clip(target[:,1], -0.5, np.inf)
         return np.mean(np.square(a - b))
 
@@ -291,7 +297,7 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
             params, cost = opt.step_and_cost(objective, params)
             t2 = time.time()
 
-            cost_delta = tracker["cost"][-1] - cost if i > 0 else 1
+            cost_delta = tracker["cost"][-1] - cost if i > 0 else None
 
             if verbose:
                 print("cost:", cost)
@@ -307,6 +313,17 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
             if "term" in options and options["term"] > cost:
                 print("Termination condition reached at step:", i)
                 break
+
+            # vanishing gradient for past 5 iterations
+            if reencode and i - tracker["restart_step"] > 5:
+                mean_delta = np.mean(np.asarray(tracker["cost"][-6:-1]) - np.asarray(tracker["cost"][-5:]))
+                if "grad_term" in options and mean_delta / cost < options["grad_term"]:
+                    print("Vanishing gradient, adding encoding layer")
+                    print(f"Mean cost delta of past 5 steps was {mean_delta}")
+                    enc_layers.append(enc_layers[-1] + 1)
+                    tracker.update({"restart_step": i})
+                    print(f"Encoding layers {enc_layers} at step {tracker["restart_step"]}")
+
     except KeyboardInterrupt:
         print("Keyboard interrupt, stopping training")
 
@@ -326,8 +343,10 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, options, tracker, 
 
 tracker1 = new_tracker()
 opt = qml.AdamOptimizer(0.1)
-fcost1, fparam1, tracker1 = train_opt(opt, init_params, target, circuit, n_qubits, layers, options, tracker1, verbose=verbose)
+fcost1, fparam1, tracker1 = train_opt(opt, init_params, target, circuit, n_qubits, layers, enc_layers, options, tracker1, verbose=verbose)
+print("saving params to adam.npy")
 np.save(f"{outdir}/adam", fparam1)
+print("saving cost to cost.npy")
 np.save(f"{outdir}/cost", np.asarray(tracker1["cost"]))
 
 
@@ -344,6 +363,7 @@ plt.plot(tracker1["time"], color=color)
 plt.ylabel("time")
 plt.yticks(color=color)
 plt.tight_layout()
+print("saving cost and runtime plot to adam.svg")
 plt.savefig(f"{outdir}/adam.svg")
 
 
@@ -351,7 +371,7 @@ plt.savefig(f"{outdir}/adam.svg")
 angles = np.linspace(0, 2*np.pi, 100)
 angles = np.tile(angles, (n_qubits,1))
 #out = circuit(n_qubits, layers, angles, fparam.reshape(layers, n_qubits, global_rots))
-out1 = circuit(n_qubits, layers, angles, fparam1)
+out1 = circuit(n_qubits, layers, angles, fparam1, enc_layers)
 
 plt.figure()
 #plt.plot(angles[0,:], out)
@@ -363,7 +383,7 @@ plt.ylabel("output expectation value")
 # plot differences
 angles = target[:,0]
 angles = np.tile(angles, (n_qubits,1))
-a = np.clip(circuit(n_qubits, layers, angles, fparam1), -0.5, np.inf)
+a = np.clip(circuit(n_qubits, layers, angles, fparam1, enc_layers), -0.5, np.inf)
 b = np.clip(target[:,1], -0.5, np.inf)
 plt.twinx()
 color = "r"
@@ -371,5 +391,5 @@ plt.plot(target[:,0], a-b, color=color, alpha=0.5)
 plt.ylabel("error difference")
 plt.yticks(color=color)
 plt.tight_layout()
+print("saving results plot to results.svg")
 plt.savefig(f"{outdir}/results.svg")
-
