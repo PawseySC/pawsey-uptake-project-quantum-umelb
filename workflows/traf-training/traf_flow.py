@@ -66,9 +66,14 @@ import itertools
 import hashlib
 import pandas
 import matplotlib.pyplot as plt
+import yaml
 from pathlib import Path
 import blade_design_tools.create_airfoil as ca
 
+
+
+def list_files(directory : str):
+    return [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
 
 def copy_and_replace(
     source_file: str,
@@ -112,7 +117,6 @@ def update_traf_input(
     param_set: List[Tuple[str,str]],
 ) -> None:
     copy_and_replace(template_name, output_name, param_set)
-    ca.generate_shape(config_filepath = output_name, make_plot = False)
     
 
 def generate_shape(
@@ -184,18 +188,6 @@ def generate_shape(
             config['camber_line']['inlet_angle_deg'],
             config['output_settings']['num_points_on_arc']
         )
-        # 5. Plot the Airfoil
-        if plot_foil:
-            plot_name = config['output_settings']['output_airfoil_filename']+".png"
-            plot_airfoil(
-                fname=config['output_settings']['output_airfoil_filename'],
-                oname=plot_name,
-                # camber_curve_points, 
-                # airfoil_top_points, 
-                # airfoil_bottom_points,
-                # config['output_settings']['plot_title']
-            )
-    
         ca.write_airfoil_dat(
             airfoil_top_points, 
             airfoil_bottom_points, 
@@ -203,8 +195,14 @@ def generate_shape(
             config['output_settings']['output_airfoil_filename'],
             config['output_settings']['chord_length_for_export']
         )
-
-
+        # 5. Plot the Airfoil
+        if plot_foil:
+            plot_name = config['output_settings']['output_airfoil_filename']+".png"
+            plot_airfoil(
+                fname=config['output_settings']['output_airfoil_filename'],
+                config_file=config_filepath,
+                oname=plot_name,
+            )
     except Exception as e:
         print(f"{e}")
         # might need to think how to handle this error in a flow. 
@@ -214,7 +212,8 @@ def generate_shape(
 
 def plot_airfoil(
         fname : str = "airfoil.dat", 
-        oname : str = "airfoil.png"
+        oname : str = "airfoil.png",
+        config_file : str = "airfoil_config.yaml",
          ) -> None:
     """plot the airfoil shape from the airfoil.dat file
     
@@ -223,6 +222,9 @@ def plot_airfoil(
         oname (str, optional): output image file name. Defaults to "airfoil.png".
     
     """
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+   
     offset = 0
     c_ax = np.loadtxt(fname,max_rows=1)
     offset += 1
@@ -234,9 +236,19 @@ def plot_airfoil(
     offset += 1
     ps = np.loadtxt(fname,skiprows=offset,max_rows=nps)
     blade = c_ax * np.concatenate((ss,np.flip(ps,axis=0)),axis=0)
+    text = ""
+    for k,v in config["camber_line"].items():
+        text += f"Camber {k}: {v}"
+    text+="\n"
+    for k,v in config["top_thickness"].items():
+        text += f"Top {k}: {v}"
+    text+="\n"
+    for k,v in config["bottom_thickness"].items():
+        text += f"Bottom {k}: {v}"  
     fig,ax = plt.subplots()
     ax.plot(blade[:,0],blade[:,1])
     ax.set_aspect('equal')
+    ax.annotate(text, xy=(0.0, 1.05), xycoords='axes fraction', fontsize=10, verticalalignment='top')
     fig.savefig(oname)
     asyncio.run(upload_image_as_artifact(Path(oname)))
 
@@ -251,9 +263,32 @@ def process_traf_output(
     Returns:
         float: pressure loss
     """
+    if not os.path.isfile(fname):
+        return np.nan
     y,pt = np.genfromtxt(fname,skip_header=3,usecols=[0,5]).T
     ptloss = 1.0-np.trapz(pt,y)
     return ptloss
+
+def clean_traf_output(
+        outdir : str = "./",
+    ) -> None:
+    """clean up the traf output directory removing unneeded files"""
+    files_to_tar = list_files(outdir)
+    files_not_to_remove = [
+        "airfoil.dat",
+        "airfoil.dat.png",
+        "airfoil_config.yaml",
+        "traf.log",
+        "pitch2",
+    ]
+    for f in files_not_to_remove:
+        if f in files_to_tar:
+            files_to_tar.remove(f)
+    cmd = ["tar", "-czf", f"{outdir}/traf_output.tar.gz"] + files_to_tar
+    subprocess.run(cmd, capture_output=False, text=True, cwd=outdir)
+    for f in files_to_tar:
+        os.remove(f"{outdir}/{f}")
+
 
 def process_and_write_traf_output(
         rawresults : Dict, 
@@ -262,11 +297,11 @@ def process_and_write_traf_output(
     """process and save relevant output from all traf runs"""
     for key in rawresults.keys():
         i = data["pname"].index(key)
-        data["TOTAL TO TOTAL ISENTROPIC EFFICIENCY"][i]=float(rawresults[key])
+        data["PRESSURE LOSS"][i]=float(rawresults[key])
     df1 = pandas.DataFrame(data)
     # need to figure out best way of saving results
     # for now we produce a csv file with results 
-    df1.to_csv(f"{output_name}.csv")
+    df1.to_csv(f"{output_name}.csv", na_rep="NaN")
 
 @task
 def run_traf(
@@ -286,9 +321,13 @@ def run_traf(
 
     if os.path.isfile(f"{outdir}traf.log"):
         logger.info(f"Skipping traf as log file exists, just process pitch2")
+        if not os.path.isfile(f"{outdir}traf_output.tar.gz"):
+            clean_traf_output(outdir=outdir) 
 
         # parse traf output for relevant data 
         result = process_traf_output(f"{outdir}pitch2")
+        if np.isnan(result):
+            logger.warning(f"Traf run for {param_set_name} in {outdir} failed to produce valid output")
         return result
 
     logger.info(f"Running traf for {param_set_name}")
@@ -326,10 +365,13 @@ def run_traf(
     info = process.stdout
     with open(f"{outdir}traf.log", "w") as f:
         f.write(info)
+    clean_traf_output(outdir=outdir)
     logger.info(f"Finished running traf")
 
     # parse traf output for relevant data 
     result = process_traf_output(f"{outdir}pitch2")
+    if np.isnan(result):
+        logger.warning(f"Traf run for {param_set_name} in {outdir} failed to produce valid output")
     return result
 
 @task
@@ -374,20 +416,34 @@ async def traf_workflow(
     run_name : str = "run",
     hash_length : int = 6,
     resultkeys : List[str] = [
-        "TOTAL TO TOTAL ISENTROPIC EFFICIENCY",
+        "PRESSURE LOSS",
     ],
     max_task_submissions : int = 512,
-    max_task_running : int = 1024,
+    max_active_task : int = 1024,
+    sleep_time_submission : int = 10,
+    sleep_time_running : int = 100,
+    test : bool = False,
     date: datetime.datetime = datetime.datetime.now(),
 ) -> None:
     """Flow for running traf 
 
     """
     logger = get_run_logger()
-    logger.info(f"Launching traf CPU flow")
+    if test:
+        logger.info(f"Testing traf CPU flow")
+    else:
+        logger.info(f"Launching traf CPU flow")
 
     param_names, param_values = traf_create_param_set.fn(params)
-    logger.info(f"Number of parameter sets to run: {len(param_values)}")
+    nruns = len(param_values)
+    logger.info(f"Number of parameter sets to run: {nruns}")
+    logger.info(f"Submission in blocks of {max_task_submissions} and max running {max_active_task} and will require {nruns/max_active_task} blocks of runs")
+    logger.info(f"Base output dir: {baseoutput_dir}")
+    logger.info(f"Run name: {run_name}")
+    logger.info(f"Output name: {output_name}")
+    if test:
+        logger.info("Finished testing traf CPU flow")
+        return
 
     # initialize the data dictionary
     data = {
@@ -401,7 +457,7 @@ async def traf_workflow(
 
     # submit the task and wait for results
     counter = 0
-    active = 0 
+    active = []
     futures = {}
     results = {}
     for param_vals in param_values:
@@ -429,7 +485,7 @@ async def traf_workflow(
                     param_set=pset,
                     outdir=outdir,
                 )
-            active += 1
+            active.append(pname)
             
         else:
             futures[pname] = None
@@ -441,22 +497,23 @@ async def traf_workflow(
                     param_set=pset,
                     outdir=outdir,
                 )
-            
+            logger.info(f"Skipping submission of traf for {pname} in {outdir} as log file exists")
         data["pname"][counter]=pname
-        for p in param_names:
-            data[p][counter]=param_vals[i]
+        for i in range(len(param_names)):
+            data[param_names[i]][counter]=param_vals[i]
         data["outdir"][counter]=outdir
         counter += 1
         if counter % max_task_submissions == 0:
-            logger.info(f"Pausing task submission for 10 seconds to not overload database")
-            sleep(10)
-        while active >= max_task_running:
+            logger.info(f"Pausing task submission for {sleep_time_submission} seconds to not overload database")
+            sleep(sleep_time_submission)
+        while len(active) >= max_active_task:
             logger.info(f"Pausing task submission till number active is reduced. ")
-            sleep(100)
-            for key in futures.keys():
+            for key in active:
                 if futures[key] is not None:
-                    if futures[key].state.is_final():
-                        active -= 1
+                    state = futures[key].get_state()
+                    if state.is_final():
+                        active.remove(key)
+            sleep(sleep_time_running)
 
     # get the results from running the traf tasks
     for key in futures.keys():
@@ -482,15 +539,45 @@ def wrapper_to_async_flow(
             params = json.load(f)
     else:
         params: Dict[str, Any] = {
-            # "TOP_INLET_ANGLE": np.arcsin(np.linspace(np.sin(-70./180.*np.pi), np.sin(70./180.*np.pi), num=5, endpoint=True))/np.pi*180.0,
-            # "TOP_OUTLET_ANGLE": np.arcsin(np.linspace(np.sin(-70./180.*np.pi), np.sin(70./180.*np.pi), num=5, endpoint=True))/np.pi*180.0,
-            # "BOTTOM_INLET_ANGLE": np.arcsin(np.linspace(np.sin(-70./180.*np.pi), np.sin(70./180.*np.pi), num=5, endpoint=True))/np.pi*180.0,
-            # "BOTTOM_OUTLET_ANGLE": np.arcsin(np.linspace(np.sin(-70./180.*np.pi), np.sin(70./180.*np.pi), num=5, endpoint=True))/np.pi*180.0,
-            "TOP_INLET_ANGLE": np.linspace(-40.0, 40.0, num=5, endpoint=True),
-            "TOP_OUTLET_ANGLE": np.linspace(-40.0, 40.0, num=5, endpoint=True),
-            "BOTTOM_INLET_ANGLE": np.linspace(-40.0, 40.0, num=5, endpoint=True),
-            "BOTTOM_OUTLET_ANGLE": np.linspace(-40.0, 40.0, num=5, endpoint=True),
-            "BLADE_SHAPE": None,
+            # small test
+            # "TOP_P1KFACTOR": np.linspace(0.2, 0.2, num=1, endpoint=True),
+            # "TOP_P2X": np.linspace(0.1, 0.1, num=1, endpoint=True),
+            # "TOP_P2Y": np.linspace(0.03, 0.03, num=1, endpoint=True),    
+            # "TOP_INLET_ANGLE": np.linspace(0.0, 70.0, num=3, endpoint=True),
+            # "TOP_OUTLET_ANGLE": np.linspace(0, 0, num=1, endpoint=True),
+
+            # "BOTTOM_P1KFACTOR": np.linspace(0.2, 0.2, num=1, endpoint=True),
+            # "BOTTOM_P2X": np.linspace(0.1, 0.1, num=1, endpoint=True),
+            # "BOTTOM_P2Y": np.linspace(0.03, 0.03, num=1, endpoint=True),    
+            # "BOTTOM_INLET_ANGLE": np.linspace(0.0, 70.0, num=3, endpoint=True),
+            # "BOTTOM_OUTLET_ANGLE": np.linspace(0, 0, num=1, endpoint=True),
+
+            # "CAMBER_INLET_ANGLE": np.linspace(20.0, 70.0, num=2, endpoint=True),
+            # "CAMBER_OUTLET_ANGLE": np.linspace(-70.0, -20.0, num=2, endpoint=True),
+            # "CAMBER_P1KFACTOR": np.linspace(0.4, 0.4, num=1, endpoint=True),
+            # "CAMBER_P2X": np.linspace(0.5, 0.5, num=1, endpoint=True),
+            # "CAMBER_P2Y": np.linspace(0.05, 0.05, num=1, endpoint=True),
+            # "CAMBER_P3KFACTOR": np.linspace(-0.25, -0.25, num=1, endpoint=True),
+
+            # full set 
+            "TOP_P1KFACTOR": np.linspace(0.2, 0.2, num=1, endpoint=True),
+            "TOP_P2X": np.linspace(0.1, 0.1, num=1, endpoint=True),
+            "TOP_P2Y": np.linspace(0.03, 0.03, num=1, endpoint=True),    
+            "TOP_INLET_ANGLE": np.linspace(0.0, 70.0, num=4, endpoint=True),
+            "TOP_OUTLET_ANGLE": np.linspace(0, 0, num=1, endpoint=True),
+
+            "BOTTOM_P1KFACTOR": np.linspace(0.2, 0.2, num=1, endpoint=True),
+            "BOTTOM_P2X": np.linspace(0.1, 0.1, num=1, endpoint=True),
+            "BOTTOM_P2Y": np.linspace(0.03, 0.03, num=1, endpoint=True),    
+            "BOTTOM_INLET_ANGLE": np.linspace(0.0, 70.0, num=4, endpoint=True),
+            "BOTTOM_OUTLET_ANGLE": np.linspace(0, 0, num=1, endpoint=True),
+
+            "CAMBER_INLET_ANGLE": np.linspace(20.0, 70.0, num=6, endpoint=True),
+            "CAMBER_OUTLET_ANGLE": np.linspace(-70.0, -20.0, num=6, endpoint=True),
+            "CAMBER_P1KFACTOR": np.linspace(0.0, 0.7, num=4, endpoint=True),
+            "CAMBER_P2X": np.linspace(0.25, 0.7, num=3, endpoint=True),
+            "CAMBER_P2Y": np.linspace(0.025, 0.1, num=3, endpoint=True),
+            "CAMBER_P3KFACTOR": np.linspace(-0.5, 0.0, num=3, endpoint=True),
         }
 
     myflow = HybridQuantumWorkflowBase(
@@ -518,6 +605,11 @@ def wrapper_to_async_flow(
             baseoutput_dir = args.output_dir,
             run_name = args.run_name,
             output_name = args.output_name,
+            test = args.test,
+            max_task_submissions = args.max_submission_chunk,
+            max_active_task = args.max_active_chunk,
+            sleep_time_submission = args.sleep_submission,
+            sleep_time_running = args.sleep_active,
         )
     )
 
@@ -541,7 +633,12 @@ def traf_argparse():
     parser.add_argument("--run_name", type=str, default="run", help="name for the run")
     parser.add_argument("--output_name", type=str, default="traf_runs", help="name for the output file")
     parser.add_argument("--params_file", type=str, default=None, help="json file containing the parameters to run")
-
+    parser.add_argument("--test", type=bool, default=False, help="Just run a test flow to check setup")
+    parser.add_argument("--max_submission_chunk", type=int, default=512, help="Max number of tasks to submit before pausing")
+    parser.add_argument("--max_active_chunk", type=int, default=1024, help="Max number of active tasks")
+    parser.add_argument("--sleep_submission", type=float, default=1.0, help="Wait time before submitting more tasks")
+    parser.add_argument("--sleep_active", type=float, default=1.0, help="Wait time before checking active tasks again")
+ 
     # Parse the arguments
     args = parser.parse_args()
     return args

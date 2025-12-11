@@ -1,5 +1,6 @@
 #/bin/bash -l
 
+runtype=traf_runs
 hname=$(hostname)
 if [[ "$hname" = "setonix-07" ||  "$hname" = "setonix-08" ]]; then 
     echo "Starting TRAF workflow on ${hname}"
@@ -9,7 +10,7 @@ if [[ "$hname" = "setonix-07" ||  "$hname" = "setonix-08" ]]; then
     ../../qbitbridge/workflow/scripts/run_start_up_scripts_for_setonix.sh
     sleep 2
     export PREFECT_API_URL=http://${hname}:4200/api
-    python3 traf_flow.py --output_dir /scratch/bq2/pelahi/traf_runs/
+    python3 traf_flow.py --output_dir /scratch/bq2/pelahi/${runtype}/ --max_submission_chunk 2048
     ../../qbitbridge/workflow/scripts/close_and_cleanup.sh
     echo "Completed TRAF workflow on ${hname}"
 else

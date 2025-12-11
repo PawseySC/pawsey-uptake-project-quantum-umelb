@@ -1,19 +1,19 @@
 # airfoil_config.yaml
 camber_line:
   control_points_params:
-    P1_k_factor: 0.4 # range of 0.2 to 0.8
-    P2_x: 0.5 # range of 0.25 to 0.7
-    P2_y: 0.05 # range of 0.025 to 0.1
-    P3_k_factor: -0.25 # range of -0.5 to 0
-  inlet_angle_deg: 45 # range of 20 to 70
-  outlet_angle_deg: -50 # range of -70 to -20
+    P1_k_factor: CAMBER_P1KFACTOR # 0.4 # range of 0.2 to 0.8
+    P2_x: CAMBER_P2X # 0.5 # range of 0.25 to 0.7
+    P2_y: CAMBER_P2Y # 0.05 # range of 0.025 to 0.1
+    P3_k_factor: CAMBER_P3KFACTOR # -0.25 # range of -0.5 to 0
+  inlet_angle_deg: CAMBER_INLET_ANGLE # range of 20 to 70
+  outlet_angle_deg: CAMBER_OUTLET_ANGLE # range of -70 to -20
   stagger_angle_deg: -25
 
 top_thickness:
   control_points_params:
-    P1_k_factor: 0.2
-    P2_x: 0.1
-    P2_y: 0.03
+    P1_k_factor: TOP_P1KFACTOR # 0.2
+    P2_x: TOP_P2X # 0.1
+    P2_y: TOP_P2Y # 0.03
     P3_k_factor: 0
   inlet_angle_deg: TOP_INLET_ANGLE
   outlet_angle_deg: TOP_OUTLET_ANGLE
@@ -22,9 +22,9 @@ top_thickness:
 
 bottom_thickness:
   control_points_params:
-    P1_k_factor: 0.2 # range of 0.1 to 0.4
-    P2_x: 0.1 # range of 0.05 to 0.3
-    P2_y: 0.03 # range of 0.01 to 0.05
+    P1_k_factor: BOTTOM_P1KFACTOR # 0.2 # range of 0.1 to 0.4
+    P2_x: BOTTOM_P2X # 0.1 # range of 0.05 to 0.3
+    P2_y: BOTTOM_P2Y # 0.03 # range of 0.01 to 0.05
     P3_k_factor: 0
   inlet_angle_deg: BOTTOM_INLET_ANGLE
   outlet_angle_deg: BOTTOM_OUTLET_ANGLE
