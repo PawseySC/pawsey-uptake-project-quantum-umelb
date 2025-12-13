@@ -314,8 +314,8 @@ def train_opt(opt, params, target, circuit, n_qubits, layers, enc_layers, option
                 print("Termination condition reached at step:", i)
                 break
 
-            # vanishing gradient for past 5 iterations
-            if reencode and i - tracker["restart_step"] > 5:
+            # vanishing gradient for past 20 iterations
+            if reencode and i - tracker["restart_step"] > 20:
                 mean_delta = np.mean(np.asarray(tracker["cost"][-6:-1]) - np.asarray(tracker["cost"][-5:]))
                 if "grad_term" in options and mean_delta / cost < options["grad_term"]:
                     print("Vanishing gradient, adding encoding layer")
@@ -352,7 +352,7 @@ np.save(f"{outdir}/cost", np.asarray(tracker1["cost"]))
 
 plt.figure()
 color = "b"
-plt.plot(tracker1["cost"], color=color)
+plt.semilogy(tracker1["cost"], color=color)
 plt.xlabel("step")
 plt.ylabel("cost")
 plt.yticks(color=color)

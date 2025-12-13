@@ -65,7 +65,7 @@ for dir in dirs:
             case _:
                 linestyle = "-"
 
-        plt.plot(
+        plt.semilogy(
             cost,
             color=color,
             marker=marker,
